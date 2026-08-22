@@ -2,7 +2,7 @@ export {
   InvalidUriError,
   PairingInProgressError,
   ProjectIdRequiredError,
+  ProposalSettledError,
   ProposalTimeoutError,
-  SessionNotFoundError,
   UnsupportedNamespacesError,
 } from './errors.js'

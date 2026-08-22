@@ -8,6 +8,7 @@ import {
   InvalidUriError,
   PairingInProgressError,
   ProjectIdRequiredError,
+  ProposalSettledError,
   ProposalTimeoutError,
   UnsupportedNamespacesError,
 } from '../errors/errors.js'
@@ -187,7 +188,7 @@ export function createWithPeer(options: create.Options, peer: Peer): Instance {
       requiredNamespaces: event.params.requiredNamespaces,
       async approveSession(approveOptions = {}) {
         if (proposalSettled)
-          throw new PairingInProgressError('Session proposal is already settled')
+          throw new ProposalSettledError('Session proposal is already settled')
         proposalSettled = true
         const supportedNamespaces =
           pairOptions.namespaces ??
@@ -219,7 +220,7 @@ export function createWithPeer(options: create.Options, peer: Peer): Instance {
       },
       async rejectSession() {
         if (proposalSettled)
-          throw new PairingInProgressError('Session proposal is already settled')
+          throw new ProposalSettledError('Session proposal is already settled')
         proposalSettled = true
         await peer.rejectSession({ id: event.id, reason: getSdkError('USER_REJECTED') })
       },

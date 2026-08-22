@@ -147,3 +147,17 @@ test('isolates request queues between wallets', async () => {
 
   await expect(result).resolves.toBe(1)
 })
+
+test('exposes diagnostics as an immutable snapshot', async () => {
+  const environment = Environment.create({ wallets: [testWallet()] })
+
+  await environment.dispatch({
+    method: 'read',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const trace = environment.trace
+
+  expect(Object.isFrozen(trace)).toBe(true)
+  expect(trace.map((entry) => entry.phase)).toEqual(['received', 'prepared', 'returned'])
+})

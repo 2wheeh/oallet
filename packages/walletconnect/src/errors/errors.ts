@@ -20,12 +20,12 @@ export class ProposalTimeoutError extends Errors.BaseError {
   override name = 'WalletConnect.ProposalTimeoutError'
 }
 
+export class ProposalSettledError extends Errors.BaseError {
+  override readonly code = 'OALLET_WC_PROPOSAL_SETTLED'
+  override name = 'WalletConnect.ProposalSettledError'
+}
+
 export class UnsupportedNamespacesError extends Errors.BaseError {
   override readonly code = 'OALLET_WC_NAMESPACES_UNSUPPORTED'
   override name = 'WalletConnect.UnsupportedNamespacesError'
-}
-
-export class SessionNotFoundError extends Errors.BaseError {
-  override readonly code = 'OALLET_WC_SESSION_NOT_FOUND'
-  override name = 'WalletConnect.SessionNotFoundError'
 }

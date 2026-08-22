@@ -91,7 +91,9 @@ export function create(options: create.Options): Instance {
 
   const environment: Instance = {
     profiles: Object.freeze(options.wallets.map((wallet) => wallet.profile)),
-    trace,
+    get trace() {
+      return Object.freeze([...trace])
+    },
     async dispatch<Result extends Json.Value = Json.Value>(input: DispatchInput) {
       const state = getWallet(wallets, input.walletId)
       record(trace, input, 'received')

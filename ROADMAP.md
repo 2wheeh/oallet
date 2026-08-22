@@ -8,64 +8,64 @@
 - [x] Set up the pnpm workspace for `oallet`, `@oallet/core`, `@oallet/evm`,
       `@oallet/walletconnect`, and `@oallet/playwright`
 - [x] Keep `oallet` as the umbrella package with subpath re-exports
-- [ ] Define serializable wallet Profiles separately from runtime bindings
-- [ ] Define stable handle types for wallets, connections, requests, pairings, and
+- [x] Define serializable wallet Profiles separately from runtime bindings
+- [x] Define stable handle types for wallets, connections, requests, pairings, and
       sessions
-- [ ] Give every Oallet error a stable `OALLET_*` code
-- [ ] Treat public interfaces and persisted state as clean breaks before the first
+- [x] Give every Oallet error a stable `OALLET_*` code
+- [x] Treat public interfaces and persisted state as clean breaks before the first
       release
 
 ## Controller and browser boundary
 
-- [ ] Implement one runner-neutral Controller as the authoritative state owner
-- [ ] Keep the Browser Adapter as a dumb versioned protocol facade
-- [ ] Expose EIP-6963 wallets before application code executes
-- [ ] Support multiple wallets, accounts, pages, and top-level origins
-- [ ] Scope authorization and active chain state to each connection or session
-- [ ] Add a thin Playwright fixture without depending on Playwright from core
+- [x] Implement one runner-neutral Controller as the authoritative state owner
+- [x] Keep the Browser Adapter as a dumb versioned protocol facade
+- [x] Expose EIP-6963 wallets before application code executes
+- [x] Support multiple wallets, accounts, pages, and top-level origins
+- [x] Scope authorization and active chain state to each connection or session
+- [x] Add a thin Playwright fixture without depending on Playwright from core
 - [ ] Make unsupported browser and protocol versions fail fast
 
 ## Request lifecycle
 
-- [ ] Queue interactive requests for explicit test-controlled approval or rejection
-- [ ] Preserve deterministic request ordering and cancellation
-- [ ] Add wallet-scoped `startAutoApprove()` with an idempotent stop function
-- [ ] Apply auto-approval to all interactive requests created within its scope
-- [ ] Separate the control stream from immutable diagnostic traces
-- [ ] Reject unsupported methods instead of silently synthesizing responses
+- [x] Queue interactive requests for explicit test-controlled approval or rejection
+- [x] Preserve deterministic request ordering and cancellation
+- [x] Add wallet-scoped `startAutoApprove()` with an idempotent stop function
+- [x] Apply auto-approval to all interactive requests created within its scope
+- [x] Separate the control stream from immutable diagnostic traces
+- [x] Reject unsupported methods instead of silently synthesizing responses
 
 ## EVM EOA wallet
 
-- [ ] Derive Alice, Bob, and remaining presets from the standard Anvil mnemonic
-- [ ] Implement account request, chain switch/add, personal signing, typed-data
+- [x] Derive Alice, Bob, and remaining presets from the standard Anvil mnemonic
+- [x] Implement account request, chain switch/add, personal signing, typed-data
       signing, and transaction submission
-- [ ] Use viem `Chain` and `Transport` as the public EVM runtime boundary
-- [ ] Proxy safe read RPC methods and block node administration methods
-- [ ] Sign and submit real EOA transactions to consumer-provided test infrastructure
-- [ ] Return the RPC-provided transaction hash immediately
+- [x] Use viem `Chain` and `Transport` as the public EVM runtime boundary
+- [x] Proxy safe read RPC methods and block node administration methods
+- [x] Sign and submit real EOA transactions to consumer-provided test infrastructure
+- [x] Return the RPC-provided transaction hash immediately
 - [ ] Verify receipt polling through unmodified viem and Wagmi application flows
 
 ## WalletConnect
 
-- [ ] Wrap `@reown/walletkit` as the controlled wallet peer
-- [ ] Require a consumer-provided `projectId` whenever WalletConnect is enabled
-- [ ] Pair through the real Reown relay without an injected fallback
-- [ ] Decode `wc:` URIs from visible QR codes with a generic scanner
-- [ ] Provide chainable `PairingFlow` helpers for pairing, proposal inspection,
+- [x] Wrap `@reown/walletkit` as the controlled wallet peer
+- [x] Require a consumer-provided `projectId` whenever WalletConnect is enabled
+- [x] Pair through the real Reown relay without an injected fallback
+- [x] Decode `wc:` URIs from visible QR codes with a generic scanner
+- [x] Provide chainable `PairingFlow` helpers for pairing, proposal inspection,
       approval, and rejection
-- [ ] Validate required namespaces strictly and approve supported optional
+- [x] Validate required namespaces strictly and approve supported optional
       intersections
-- [ ] Route session requests through the same approval and EVM execution machinery
+- [x] Route session requests through the same approval and EVM execution machinery
 - [ ] Cover session update, disconnect, expiry, and same-test page reload restoration
 - [ ] Run real-relay canaries as a release gate rather than on every pull request
 
 ## State and diagnostics
 
-- [ ] Provide explicit reset APIs for test-, worker-, and project-scoped lifecycles
-- [ ] Snapshot and restore deterministic wallet, connection, and approval state
-- [ ] Exclude active WalletConnect sessions from portable snapshots initially
-- [ ] Redact private keys, mnemonics, WalletConnect keys, and sensitive payloads
-- [ ] Attach structured wallet traces to failed Playwright tests
+- [x] Provide explicit reset APIs for test-, worker-, and project-scoped lifecycles
+- [x] Snapshot and restore deterministic wallet, connection, and approval state
+- [x] Exclude active WalletConnect sessions from portable snapshots initially
+- [x] Redact private keys, mnemonics, WalletConnect keys, and sensitive payloads
+- [x] Attach structured wallet traces to failed Playwright tests
 - [ ] Provide assertions over observable wallet behavior rather than internals
 
 ## Dogfood and release gate
