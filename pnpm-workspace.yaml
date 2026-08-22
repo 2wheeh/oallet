@@ -11,6 +11,7 @@ catalog:
   '@walletconnect/jsonrpc-utils': 1.0.8
   '@walletconnect/utils': 2.23.10
   pngjs: 7.0.0
+  prool: ^0.2.14
   publint: ^0.3.21
   qr: ^0.6.0
   tsdown: ^0.21.9
