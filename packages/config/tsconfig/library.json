@@ -1,0 +1,7 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "customConditions": ["source"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  }
+}

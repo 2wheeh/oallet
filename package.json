@@ -1,0 +1,21 @@
+{
+  "name": "oallet-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.4",
+  "engines": {
+    "node": ">=22.11"
+  },
+  "scripts": {
+    "build": "pnpm --filter './packages/**' --if-present build",
+    "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm test:build",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test:build": "pnpm --filter './packages/**' --if-present test:build",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:"
+  }
+}

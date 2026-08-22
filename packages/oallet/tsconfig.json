@@ -1,0 +1,4 @@
+{
+  "extends": "@oallet/config/tsconfig/library.json",
+  "include": ["src"]
+}

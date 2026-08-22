@@ -1,0 +1,44 @@
+{
+  "name": "@oallet/walletconnect",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test:build": "publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:^",
+    "@reown/walletkit": "catalog:",
+    "@walletconnect/core": "catalog:",
+    "@walletconnect/jsonrpc-utils": "catalog:",
+    "@walletconnect/utils": "catalog:"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@oallet/config": "workspace:*",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

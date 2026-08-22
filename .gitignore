@@ -1,0 +1,9 @@
+node_modules
+dist
+.DS_Store
+coverage
+playwright-report
+test-results
+*.tgz
+.env
+.env.local

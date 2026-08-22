@@ -1,0 +1,69 @@
+{
+  "name": "oallet",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./core": {
+      "source": "./src/core.ts",
+      "types": "./dist/core.d.ts",
+      "default": "./dist/core.js"
+    },
+    "./evm": {
+      "source": "./src/evm.ts",
+      "types": "./dist/evm.d.ts",
+      "default": "./dist/evm.js"
+    },
+    "./playwright": {
+      "source": "./src/playwright.ts",
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
+    },
+    "./walletconnect": {
+      "source": "./src/walletconnect.ts",
+      "types": "./dist/walletconnect.d.ts",
+      "default": "./dist/walletconnect.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      "./core": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.js"
+      },
+      "./evm": {
+        "types": "./dist/evm.d.ts",
+        "default": "./dist/evm.js"
+      },
+      "./playwright": {
+        "types": "./dist/playwright.d.ts",
+        "default": "./dist/playwright.js"
+      },
+      "./walletconnect": {
+        "types": "./dist/walletconnect.d.ts",
+        "default": "./dist/walletconnect.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test:build": "publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:^",
+    "@oallet/evm": "workspace:^",
+    "@oallet/playwright": "workspace:^",
+    "@oallet/walletconnect": "workspace:^"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@oallet/config": "workspace:*",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@oallet/evm",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test:build": "publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "viem": ">=2.51 <3"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@oallet/config": "workspace:*",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "viem": "catalog:",
+    "vitest": "catalog:"
+  }
+}

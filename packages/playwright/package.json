@@ -1,0 +1,47 @@
+{
+  "name": "@oallet/playwright",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test:build": "publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:^",
+    "pngjs": "catalog:",
+    "qr": "catalog:"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.60 <2"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@oallet/config": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@types/pngjs": "catalog:",
+    "publint": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
