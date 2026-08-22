@@ -23,6 +23,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "test": "vitest run",
     "test:build": "publint --strict && attw --pack . --profile esm-only",
     "typecheck": "tsc --noEmit"
   },
