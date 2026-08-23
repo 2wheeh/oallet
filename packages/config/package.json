@@ -8,7 +8,13 @@
     "./tsconfig/library.json": "./tsconfig/library.json",
     "./tsdown": "./src/tsdown.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "tsdown": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
   }
 }
