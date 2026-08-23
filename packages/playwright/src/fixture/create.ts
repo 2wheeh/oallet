@@ -11,28 +11,26 @@ type FunctionReturn<FunctionType extends (...args: never[]) => unknown> =
   FunctionType extends (...args: never[]) => infer Result ? Result : never
 
 export function create(options: create.Options) {
+  const fixture = async (
+    { context }: { context: BrowserContext },
+    use: (environment: Environment.Instance) => Promise<void>,
+    testInfo: TestInfo,
+  ) => {
+    const environment =
+      typeof options.environment === 'function'
+        ? await options.environment(testInfo)
+        : options.environment
+    await attach({ context, environment })
+    await use(environment)
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await testInfo.attach('oallet-trace.json', {
+        body: JSON.stringify(redact(environment.trace), null, 2),
+        contentType: 'application/json',
+      })
+    }
+  }
   return {
-    oallet: [
-      async (
-        { context }: { context: BrowserContext },
-        use: (environment: Environment.Instance) => Promise<void>,
-        testInfo: TestInfo,
-      ) => {
-        const environment =
-          typeof options.environment === 'function'
-            ? await options.environment(testInfo)
-            : options.environment
-        await attach({ context, environment })
-        await use(environment)
-        if (testInfo.status !== testInfo.expectedStatus) {
-          await testInfo.attach('oallet-trace.json', {
-            body: JSON.stringify(redact(environment.trace), null, 2),
-            contentType: 'application/json',
-          })
-        }
-      },
-      { auto: true as const },
-    ] as const,
+    oallet: [fixture, { auto: true }] as [typeof fixture, { auto: true }],
   }
 }
 

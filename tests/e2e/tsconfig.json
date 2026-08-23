@@ -1,0 +1,7 @@
+{
+  "extends": "@oallet/config/tsconfig/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
+  "include": ["fixtures", "playwright.config.ts", "specs"]
+}
