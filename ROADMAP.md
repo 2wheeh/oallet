@@ -89,6 +89,7 @@
 
 ## Later fidelity
 
+- [ ] Evaluate project references when workspace typecheck performance warrants it
 - [ ] Add semantic EIP-5792 profiles for 4337 and 7702 observable behavior
 - [ ] Add passkey-like and ERC-1271 response fixtures without claiming onchain AA
 - [ ] Evaluate execution-backed AA only as a separate fidelity tier
