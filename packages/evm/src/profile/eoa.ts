@@ -9,9 +9,7 @@ export type Data = {
   readonly defaultChainId: number
 }
 
-export type Definition = Profile.Definition<Data> & {
-  readonly kind: 'eip155:eoa'
-}
+export type Definition = Profile.Definition<Data, 'eip155:eoa'>
 
 export function eoa(options: eoa.Options): Definition {
   if (options.accounts.length === 0)
@@ -42,7 +40,7 @@ export function eoa(options: eoa.Options): Definition {
     id: options.id,
     kind: 'eip155:eoa',
     name: options.name,
-  }) as Definition
+  })
 }
 
 export declare namespace eoa {

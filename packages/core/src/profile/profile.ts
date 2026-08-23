@@ -1,39 +1,42 @@
-import * as Schema from 'valibot'
+import * as v from 'valibot'
 
 import { BaseError } from '../errors/base-error.js'
 import * as Json from '../json/json.js'
 
-export type Definition<Data extends Json.Value = Json.Value> = {
+export type Definition<
+  Data extends Json.Value = Json.Value,
+  Kind extends string = string,
+> = {
   readonly data: Data
   readonly fingerprint: string
   readonly icon?: string | undefined
   readonly id: string
-  readonly kind: string
+  readonly kind: Kind
   readonly name: string
 }
 
-export type Input<Data extends Json.Value = Json.Value> = Omit<
-  Definition<Data>,
-  'fingerprint'
->
+export type Input<
+  Data extends Json.Value = Json.Value,
+  Kind extends string = string,
+> = Omit<Definition<Data, Kind>, 'fingerprint'>
 
 export class InvalidError extends BaseError {
   override readonly code = 'OALLET_PROFILE_INVALID'
   override name = 'Profile.InvalidError'
 }
 
-const inputSchema = Schema.strictObject({
-  data: Schema.unknown(),
-  icon: Schema.optional(Schema.string()),
-  id: Schema.pipe(Schema.string(), Schema.trim(), Schema.minLength(1)),
-  kind: Schema.pipe(Schema.string(), Schema.trim(), Schema.minLength(1)),
-  name: Schema.pipe(Schema.string(), Schema.trim(), Schema.minLength(1)),
+const inputSchema = v.strictObject({
+  data: v.unknown(),
+  icon: v.optional(v.string()),
+  id: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  kind: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  name: v.pipe(v.string(), v.trim(), v.minLength(1)),
 })
 
-export function define<const Data extends Json.Value>(
-  input: Input<Data>,
-): Definition<Data> {
-  const result = Schema.safeParse(inputSchema, input)
+export function define<const Data extends Json.Value, const Kind extends string>(
+  input: Input<Data, Kind>,
+): Definition<Data, Kind> {
+  const result = v.safeParse(inputSchema, input)
   if (!result.success) throw new InvalidError('Profile fields must be non-empty strings')
   try {
     Json.assert(result.output.data)
@@ -51,12 +54,18 @@ export function define<const Data extends Json.Value>(
     ...normalized,
     fingerprint: fingerprint(normalized),
   }
-  return Json.freeze(profile) as Definition<Data>
+  return Json.freeze(profile) as Definition<Data, Kind>
 }
 
 export declare namespace define {
-  type Options<Data extends Json.Value = Json.Value> = Input<Data>
-  type ReturnType<Data extends Json.Value = Json.Value> = Definition<Data>
+  type Options<
+    Data extends Json.Value = Json.Value,
+    Kind extends string = string,
+  > = Input<Data, Kind>
+  type ReturnType<
+    Data extends Json.Value = Json.Value,
+    Kind extends string = string,
+  > = Definition<Data, Kind>
 }
 
 function fingerprint(profile: Json.Value): string {

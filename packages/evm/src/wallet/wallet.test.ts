@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { custom, recoverMessageAddress } from 'viem'
+import { custom, type Hex, recoverMessageAddress } from 'viem'
 import { anvil, mainnet } from 'viem/chains'
 import { expect, test } from 'vitest'
 
@@ -83,7 +83,7 @@ test('signs personal messages only after authorization', async () => {
   })
   stop()
 
-  const signature = environment.dispatch<string>({
+  const signature = environment.dispatch<Hex>({
     method: 'personal_sign',
     origin: 'https://app.example',
     params: ['0x68656c6c6f', Identity.alice.address],

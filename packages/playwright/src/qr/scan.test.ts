@@ -7,14 +7,18 @@ import * as Qr from './exports.js'
 test('decodes a visible QR screenshot', async () => {
   const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
   const matrix = encodeQR(value, 'raw', { border: 4 })
+  const firstRow = matrix[0]
+  if (!firstRow) throw new Error('QR matrix must not be empty')
   const scale = 6
   const image = new PNG({
     height: matrix.length * scale,
-    width: matrix[0].length * scale,
+    width: firstRow.length * scale,
   })
   for (let y = 0; y < image.height; y++) {
     for (let x = 0; x < image.width; x++) {
-      const dark = matrix[Math.floor(y / scale)][Math.floor(x / scale)]
+      const row = matrix[Math.floor(y / scale)]
+      if (!row) throw new Error('QR row must be within the image bounds')
+      const dark = row[Math.floor(x / scale)]
       const offset = (y * image.width + x) * 4
       image.data[offset] = dark ? 0 : 255
       image.data[offset + 1] = dark ? 0 : 255

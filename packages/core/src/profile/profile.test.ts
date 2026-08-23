@@ -26,14 +26,14 @@ test('rejects invalid profile identifiers and non-json data', () => {
   expect(() =>
     Profile.define({ data: {}, id: ' ', kind: 'eip155:eoa', name: 'Wallet' }),
   ).toThrow(Profile.InvalidError)
-  expect(() =>
-    Profile.define({
-      data: { callback: () => undefined },
-      id: 'wallet',
-      kind: 'eip155:eoa',
-      name: 'Wallet',
-    }),
-  ).toThrow(Profile.InvalidError)
+  const untrustedInput = {
+    data: { callback: () => undefined },
+    id: 'wallet',
+    kind: 'eip155:eoa',
+    name: 'Wallet',
+  } as unknown as Profile.define.Options
+
+  expect(() => Profile.define(untrustedInput)).toThrow(Profile.InvalidError)
 })
 
 test('accepts repeated non-cyclic values', () => {
@@ -46,4 +46,16 @@ test('accepts repeated non-cyclic values', () => {
   })
 
   expect(profile.data).toEqual({ left: { value: 1 }, right: { value: 1 } })
+})
+
+test('preserves a user-defined profile kind as a string literal', () => {
+  const profile = Profile.define({
+    data: { feature: 'custom' },
+    id: 'custom-wallet',
+    kind: 'acme:custom-wallet',
+    name: 'Custom Wallet',
+  })
+  const kind: 'acme:custom-wallet' = profile.kind
+
+  expect(kind).toBe('acme:custom-wallet')
 })
