@@ -264,17 +264,14 @@ export function createWithPeer(options: create.Options, peer: Peer): Instance {
 
   async function ensureConnected(state: SessionState) {
     if (state.connected) return
-    const stop = environment.wallet(state.walletId).startAutoApprove()
-    try {
+    await environment.wallet(state.walletId).autoApprove(async () => {
       await environment.dispatch({
         method: 'eth_requestAccounts',
         origin: sessionOrigin(state.session.topic),
         walletId: state.walletId,
       })
       state.connected = true
-    } finally {
-      stop()
-    }
+    })
   }
 
   async function selectChain(state: SessionState, caipChainId: string) {
@@ -288,17 +285,14 @@ export function createWithPeer(options: create.Options, peer: Peer): Instance {
       walletId: state.walletId,
     })
     if (Number(BigInt(activeChain)) === chainId) return
-    const stop = environment.wallet(state.walletId).startAutoApprove()
-    try {
-      await environment.dispatch({
+    await environment.wallet(state.walletId).autoApprove(() =>
+      environment.dispatch({
         method: 'wallet_switchEthereumChain',
         origin,
         params: [{ chainId: `0x${chainId.toString(16)}` }],
         walletId: state.walletId,
-      })
-    } finally {
-      stop()
-    }
+      }),
+    )
   }
 }
 

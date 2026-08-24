@@ -38,7 +38,17 @@ export function App() {
           </button>
         ))}
       </div>
+      <output data-testid="status">{connection.status}</output>
+      <output data-testid="connect-error">
+        {connect.error
+          ? JSON.stringify({
+              code: (connect.error as Error & { code?: number }).code,
+              message: connect.error.message,
+            })
+          : undefined}
+      </output>
       <output data-testid="account">{connection.address}</output>
+      <output data-testid="chain">{connection.chainId}</output>
       <label>
         Message
         <input

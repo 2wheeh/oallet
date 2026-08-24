@@ -15,6 +15,11 @@ export class InvalidRequestError extends Errors.BaseError {
   override name = 'Playwright.InvalidRequestError'
 }
 
+export class DeliveryError extends Errors.BaseError {
+  override readonly code = 'OALLET_PLAYWRIGHT_DELIVERY'
+  override name = 'Playwright.DeliveryError'
+}
+
 export class UnsupportedFrameError extends Errors.BaseError {
   override readonly code = 'OALLET_PLAYWRIGHT_FRAME_UNSUPPORTED'
   override name = 'Playwright.UnsupportedFrameError'

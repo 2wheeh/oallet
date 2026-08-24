@@ -1,1 +1,15 @@
-export type { Entry, Phase } from './trace.js'
+export type {
+  Artifact,
+  ConnectionEvent,
+  EnvironmentEvent,
+  Error,
+  Event,
+  Input,
+  ProviderEvent,
+  RequestApproved,
+  RequestCancelled,
+  RequestFailed,
+  RequestReceived,
+  RequestRejected,
+  RequestReturned,
+} from './trace.js'

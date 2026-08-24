@@ -6,7 +6,6 @@ import { expect, test } from 'vitest'
 import * as Errors from '../errors/exports.js'
 import * as Identity from '../identity/exports.js'
 import * as Profile from '../profile/exports.js'
-import * as Runtime from '../runtime/exports.js'
 import * as Wallet from './exports.js'
 
 function setup() {
@@ -22,32 +21,34 @@ function setup() {
       throw new Error(`Unexpected RPC method: ${method}`)
     },
   }
-  const runtime = Runtime.create({
-    chains: [
-      { chain: mainnet, transport: custom(provider) },
-      { chain: anvil, transport: custom(provider) },
-    ],
-  })
   const environment = Environment.create({
-    wallets: [Wallet.create({ profile, runtime })],
+    wallets: [
+      Wallet.create({
+        chains: [
+          { chain: mainnet, transport: custom(provider) },
+          { chain: anvil, transport: custom(provider) },
+        ],
+        profile,
+      }),
+    ],
   })
   return { environment, wallet: environment.wallet('wallet') }
 }
 
-test('authorizes accounts manually and scopes connections by origin', async () => {
+test('returns the approved origin connection while the dapp receives accounts', async () => {
   const { environment, wallet } = setup()
-  const connection = environment.dispatch({
+  const response = environment.dispatch({
     method: 'eth_requestAccounts',
     origin: 'https://one.example',
     walletId: 'wallet',
   })
 
-  await (await wallet.requests.next()).approve()
+  const request = await wallet.requests.next('eth_requestAccounts')
+  const connection = await request.approve()
 
-  await expect(connection).resolves.toEqual([
-    Identity.alice.address,
-    Identity.bob.address,
-  ])
+  expect(connection.origin).toBe('https://one.example')
+  expect(wallet.connections.get('https://one.example')).toBe(connection)
+  await expect(response).resolves.toEqual([Identity.alice.address, Identity.bob.address])
   await expect(
     environment.dispatch({
       method: 'eth_accounts',
@@ -75,13 +76,13 @@ test('signs personal messages only after authorization', async () => {
     }),
   ).rejects.toBeInstanceOf(Errors.UnauthorizedError)
 
-  const stop = wallet.startAutoApprove()
-  await environment.dispatch({
-    method: 'eth_requestAccounts',
-    origin: 'https://app.example',
-    walletId: 'wallet',
-  })
-  stop()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
 
   const signature = environment.dispatch<Hex>({
     method: 'personal_sign',
@@ -89,7 +90,7 @@ test('signs personal messages only after authorization', async () => {
     params: ['0x68656c6c6f', Identity.alice.address],
     walletId: 'wallet',
   })
-  await (await wallet.requests.next()).approve()
+  await (await wallet.requests.next('personal_sign')).approve()
 
   await expect(
     recoverMessageAddress({
@@ -99,16 +100,45 @@ test('signs personal messages only after authorization', async () => {
   ).resolves.toBe(Identity.alice.address)
 })
 
-test('keeps active chain state scoped to each origin', async () => {
+test('changes the authorized accounts through the approved connection', async () => {
   const { environment, wallet } = setup()
-  const stop = wallet.startAutoApprove()
-  await environment.dispatch({
-    method: 'wallet_switchEthereumChain',
-    origin: 'https://one.example',
-    params: [{ chainId: '0x7a69' }],
+  const response = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
     walletId: 'wallet',
   })
-  stop()
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await response
+
+  await connection.setAccounts([Identity.bob])
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_accounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toEqual([Identity.bob.address])
+  await expect(
+    environment.dispatch({
+      method: 'personal_sign',
+      origin: 'https://app.example',
+      params: ['0x68656c6c6f', Identity.alice.address],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.UnauthorizedError)
+})
+
+test('keeps active chain state scoped to each origin', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'wallet_switchEthereumChain',
+      origin: 'https://one.example',
+      params: [{ chainId: '0x7a69' }],
+      walletId: 'wallet',
+    }),
+  )
 
   await expect(
     environment.dispatch({
@@ -124,6 +154,67 @@ test('keeps active chain state scoped to each origin', async () => {
       walletId: 'wallet',
     }),
   ).resolves.toBe('0x1')
+})
+
+test('switches the active chain through the approved connection', async () => {
+  const { environment, wallet } = setup()
+  const response = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await response
+
+  await connection.switchChain(anvil.id)
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x7a69')
+})
+
+test('disconnects and reconnects provider access without losing wallet state', async () => {
+  const { environment, wallet } = setup()
+  const response = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await response
+  await connection.setAccounts([Identity.bob])
+  await connection.switchChain(anvil.id)
+
+  await connection.disconnect()
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.ProviderDisconnectedError)
+
+  await connection.reconnect()
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_accounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toEqual([Identity.bob.address])
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x7a69')
 })
 
 test('proxies allowlisted reads and rejects unknown methods', async () => {
@@ -143,4 +234,96 @@ test('proxies allowlisted reads and rejects unknown methods', async () => {
       walletId: 'wallet',
     }),
   ).rejects.toBeInstanceOf(Errors.UnsupportedMethodError)
+})
+
+test('rejects wallet_addEthereumChain instead of treating it as a switch', async () => {
+  const { environment } = setup()
+
+  await expect(
+    environment.dispatch({
+      method: 'wallet_addEthereumChain',
+      origin: 'https://app.example',
+      params: [{ chainId: '0x7a69' }],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.UnsupportedMethodError)
+})
+
+test('restores connection state without replacing its handle', async () => {
+  const { environment, wallet } = setup()
+  const response = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await response
+  await connection.setAccounts([Identity.bob])
+  await connection.switchChain(anvil.id)
+  await connection.disconnect()
+  const snapshot = await environment.snapshot()
+
+  await connection.reconnect()
+  await connection.setAccounts([Identity.alice])
+  await connection.switchChain(mainnet.id)
+
+  await environment.restore(snapshot)
+
+  expect(wallet.connections.get('https://app.example')).toBe(connection)
+  await expect(
+    environment.dispatch({
+      method: 'eth_accounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.ProviderDisconnectedError)
+
+  await connection.reconnect()
+  await expect(
+    environment.dispatch({
+      method: 'eth_accounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toEqual([Identity.bob.address])
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x7a69')
+})
+
+test('invalidates handles removed by restore and environment disposal', async () => {
+  const { environment, wallet } = setup()
+  const empty = await environment.snapshot()
+  const response = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await response
+
+  await environment.restore(empty)
+
+  await expect(connection.setAccounts([Identity.bob])).rejects.toBeInstanceOf(
+    Errors.StaleConnectionError,
+  )
+
+  const nextResponse = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const nextConnection = await (
+    await wallet.requests.next('eth_requestAccounts')
+  ).approve()
+  await nextResponse
+  await environment.dispose()
+
+  await expect(nextConnection.setAccounts([Identity.bob])).rejects.toBeInstanceOf(
+    Errors.ConnectionDisposedError,
+  )
 })

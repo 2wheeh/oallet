@@ -1,5 +1,6 @@
 export {
   AlreadyAttachedError,
+  DeliveryError,
   ExistingPageError,
   InvalidRequestError,
   QrNotFoundError,

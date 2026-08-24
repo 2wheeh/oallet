@@ -1,1 +1,1 @@
-export type { Handle, Queue, Status } from './request.js'
+export type { Handle, Queue, Rejection, ResultFor, Status } from './request.js'

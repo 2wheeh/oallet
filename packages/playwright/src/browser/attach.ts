@@ -1,14 +1,15 @@
-import { type Environment, Json, type Profile } from '@oallet/core'
-import type { BrowserContext } from '@playwright/test'
+import { Environment, Json, type Profile } from '@oallet/core'
+import type { BrowserContext, Frame, Page } from '@playwright/test'
 
 import {
   AlreadyAttachedError,
+  DeliveryError,
   ExistingPageError,
   InvalidRequestError,
   UnsupportedFrameError,
 } from '../errors/errors.js'
 
-const bindingName = '__oallet_request_v1__'
+const bindingName = '__oallet_bridge_v1__'
 const attachedContexts = new WeakSet<BrowserContext>()
 
 type BrowserProfile = {
@@ -18,9 +19,53 @@ type BrowserProfile = {
   readonly name: string
 }
 
-export type Handle = {
-  readonly environment: Environment.Instance
+type ProviderSession = {
+  readonly frame: Frame
+  readonly origin: string
+  readonly pending: Map<string, AbortController>
+  readonly walletId: string
+}
+
+type RegisterMessage = {
+  readonly protocolVersion: 1
+  readonly providerSessionId: string
+  readonly type: 'register'
+  readonly walletId: string
+}
+
+type RequestMessage = {
+  readonly method: string
+  readonly params?: Json.Value | undefined
+  readonly protocolVersion: 1
+  readonly providerSessionId: string
+  readonly requestId: string
+  readonly type: 'request'
+  readonly walletId: string
+}
+
+type BridgeMessage = RegisterMessage | RequestMessage
+
+type RequestResponse = {
+  readonly error?: {
+    readonly code: number
+    readonly data?: Json.Value | undefined
+    readonly message: string
+  }
+  readonly protocolVersion: 1
+  readonly requestId: string
+  readonly result?: Json.Value | undefined
+}
+
+type EnvironmentPort = {
+  readonly [Environment.controller]: Environment.Controller
   readonly profiles: readonly Profile.Definition[]
+  dispatch(input: Environment.DispatchInput): Promise<Json.Value>
+}
+
+export type Handle = {
+  readonly environment: EnvironmentPort
+  readonly profiles: readonly Profile.Definition[]
+  dispose(): Promise<void>
 }
 
 export async function attach(options: attach.Options): Promise<Handle> {
@@ -34,6 +79,27 @@ export async function attach(options: attach.Options): Promise<Handle> {
     )
   }
   attachedContexts.add(context)
+  const sessions = new Map<string, ProviderSession>()
+  const endSession = (providerSessionId: string) => {
+    const session = sessions.get(providerSessionId)
+    if (!session) return
+    sessions.delete(providerSessionId)
+    for (const controller of session.pending.values()) controller.abort()
+    session.pending.clear()
+  }
+  const endFrame = (frame: Frame) => {
+    for (const [providerSessionId, session] of sessions) {
+      if (session.frame === frame) endSession(providerSessionId)
+    }
+  }
+  const observePage = (page: Page) => {
+    page.on('close', () => endFrame(page.mainFrame()))
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) endFrame(frame)
+    })
+  }
+  context.on('page', observePage)
+  let unsubscribe: () => void = () => undefined
   try {
     await context.exposeBinding(bindingName, async (source, payload: unknown) => {
       if (source.frame !== source.page.mainFrame()) {
@@ -41,17 +107,146 @@ export async function attach(options: attach.Options): Promise<Handle> {
           'Oallet only accepts requests from top-level frames',
         )
       }
-      const request = parseRequest(payload)
-      const origin = new URL(source.frame.url()).origin
-      if (origin === 'null') {
-        throw new InvalidRequestError('Wallet requests require an http or https origin')
+      const message = parseMessage(payload)
+      const origin = frameOrigin(source.frame)
+      if (message.type === 'register') {
+        for (const [id, session] of sessions) {
+          if (session.frame === source.frame && session.walletId === message.walletId) {
+            endSession(id)
+          }
+        }
+        sessions.set(message.providerSessionId, {
+          frame: source.frame,
+          origin,
+          pending: new Map(),
+          walletId: message.walletId,
+        })
+        return environment[Environment.controller].state(message.walletId, origin)
       }
-      return environment.dispatch({
-        method: request.method,
-        origin,
-        ...(request.params === undefined ? {} : { params: request.params }),
-        walletId: request.walletId,
-      })
+      const session = sessions.get(message.providerSessionId)
+      if (
+        !session ||
+        session.frame !== source.frame ||
+        session.origin !== origin ||
+        session.walletId !== message.walletId
+      ) {
+        throw new InvalidRequestError('Browser request provider session is not active')
+      }
+      const abort = new AbortController()
+      session.pending.set(message.requestId, abort)
+      try {
+        const result = await environment.dispatch({
+          method: message.method,
+          origin,
+          ...(message.params === undefined ? {} : { params: message.params }),
+          providerSessionId: message.providerSessionId,
+          requestId: message.requestId,
+          signal: abort.signal,
+          walletId: message.walletId,
+        })
+        return {
+          protocolVersion: 1,
+          requestId: message.requestId,
+          result,
+        } satisfies RequestResponse
+      } catch (error) {
+        return {
+          error: providerError(error),
+          protocolVersion: 1,
+          requestId: message.requestId,
+        } satisfies RequestResponse
+      } finally {
+        session.pending.delete(message.requestId)
+      }
+    })
+    unsubscribe = environment[Environment.controller].subscribe(async (event) => {
+      const targets = [...sessions].filter(
+        ([, session]) =>
+          session.walletId === event.walletId && session.origin === event.origin,
+      )
+      await Promise.all(
+        targets.map(async ([providerSessionId, session]) => {
+          if (session.frame.isDetached() || session.frame.page().isClosed()) {
+            endSession(providerSessionId)
+            return
+          }
+          let delivered: boolean
+          try {
+            delivered = await session.frame.evaluate(
+              ({ name, providerSessionId, serializedData }) => {
+                const deliver = (
+                  globalThis as typeof globalThis & {
+                    __oallet_emit_v1__?: (
+                      providerSessionId: string,
+                      name: string,
+                      data?: unknown,
+                    ) => boolean
+                  }
+                ).__oallet_emit_v1__
+                return (
+                  deliver?.(
+                    providerSessionId,
+                    name,
+                    serializedData === undefined ? undefined : JSON.parse(serializedData),
+                  ) ?? false
+                )
+              },
+              {
+                name: event.name,
+                providerSessionId,
+                ...(event.data === undefined
+                  ? {}
+                  : { serializedData: JSON.stringify(event.data) }),
+              },
+            )
+          } catch (error) {
+            if (
+              !sessions.has(providerSessionId) ||
+              session.frame.isDetached() ||
+              session.frame.page().isClosed()
+            ) {
+              endSession(providerSessionId)
+              return
+            }
+            environment[Environment.controller].delivery({
+              data: {
+                message: error instanceof Error ? error.message : String(error),
+              },
+              delivered: false,
+              name: event.name,
+              origin: event.origin,
+              providerSessionId,
+              walletId: event.walletId,
+            })
+            throw new DeliveryError(
+              `Failed to deliver ${event.name} to provider session ${providerSessionId}`,
+              { cause: error },
+            )
+          }
+          if (!delivered) {
+            environment[Environment.controller].delivery({
+              data: { message: 'The provider did not acknowledge the event' },
+              delivered: false,
+              name: event.name,
+              origin: event.origin,
+              providerSessionId,
+              walletId: event.walletId,
+            })
+            endSession(providerSessionId)
+            throw new DeliveryError(
+              `Provider session ${providerSessionId} did not acknowledge ${event.name}`,
+            )
+          }
+          environment[Environment.controller].delivery({
+            ...(event.data === undefined ? {} : { data: event.data }),
+            delivered: true,
+            name: event.name,
+            origin: event.origin,
+            providerSessionId,
+            walletId: event.walletId,
+          })
+        }),
+      )
     })
     const profiles: BrowserProfile[] = environment.profiles.map(
       ({ icon, id, kind, name }) => ({
@@ -63,67 +258,159 @@ export async function attach(options: attach.Options): Promise<Handle> {
     )
     await context.addInitScript(browserBootstrap, profiles)
   } catch (error) {
+    unsubscribe()
     attachedContexts.delete(context)
     throw error
   }
-  return { environment, profiles: environment.profiles }
+  let active = true
+  return {
+    async dispose() {
+      if (!active) return
+      active = false
+      context.off('page', observePage)
+      unsubscribe()
+      for (const providerSessionId of [...sessions.keys()]) {
+        endSession(providerSessionId)
+      }
+    },
+    environment,
+    profiles: environment.profiles,
+  }
 }
 
 export declare namespace attach {
   type Options = {
     readonly context: BrowserContext
-    readonly environment: Environment.Instance
+    readonly environment: EnvironmentPort
   }
   type ReturnType = Handle
 }
 
-function parseRequest(value: unknown): {
-  method: string
-  params?: Json.Value | undefined
-  walletId: string
-} {
+function frameOrigin(frame: Frame) {
+  const origin = new URL(frame.url()).origin
+  if (origin === 'null') {
+    throw new InvalidRequestError('Wallet requests require an http or https origin')
+  }
+  return origin
+}
+
+function parseMessage(value: unknown): BridgeMessage {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new InvalidRequestError('Browser request must be an object')
+    throw new InvalidRequestError('Browser bridge message must be an object')
   }
-  const request = value as Record<string, unknown>
-  if (typeof request.walletId !== 'string' || typeof request.method !== 'string') {
-    throw new InvalidRequestError('Browser request requires walletId and method')
+  const message = value as Record<string, unknown>
+  if (message.protocolVersion !== 1) {
+    throw new InvalidRequestError('Unsupported browser bridge protocol version')
   }
-  if (request.params !== undefined) {
+  if (
+    typeof message.providerSessionId !== 'string' ||
+    typeof message.walletId !== 'string'
+  ) {
+    throw new InvalidRequestError(
+      'Browser bridge message requires providerSessionId and walletId',
+    )
+  }
+  if (message.type === 'register') {
+    return {
+      protocolVersion: 1,
+      providerSessionId: message.providerSessionId,
+      type: 'register',
+      walletId: message.walletId,
+    }
+  }
+  if (
+    message.type !== 'request' ||
+    typeof message.requestId !== 'string' ||
+    typeof message.method !== 'string'
+  ) {
+    throw new InvalidRequestError(
+      'Browser request requires requestId, walletId, and method',
+    )
+  }
+  if (message.params !== undefined) {
     try {
-      Json.assert(request.params)
+      Json.assert(message.params)
     } catch (cause) {
       throw new InvalidRequestError('Browser request params must be JSON data', { cause })
     }
   }
   return {
-    method: request.method,
-    ...(request.params === undefined ? {} : { params: request.params as Json.Value }),
-    walletId: request.walletId,
+    method: message.method,
+    ...(message.params === undefined ? {} : { params: message.params as Json.Value }),
+    protocolVersion: 1,
+    providerSessionId: message.providerSessionId,
+    requestId: message.requestId,
+    type: 'request',
+    walletId: message.walletId,
+  }
+}
+
+function providerError(error: unknown): NonNullable<RequestResponse['error']> {
+  const candidate = error as {
+    readonly code?: unknown
+    readonly data?: unknown
+    readonly message?: unknown
+    readonly providerCode?: unknown
+  }
+  const code =
+    typeof candidate.providerCode === 'number'
+      ? candidate.providerCode
+      : typeof candidate.code === 'number'
+        ? candidate.code
+        : -32603
+  return {
+    code,
+    ...(Json.isValue(candidate.data) ? { data: candidate.data } : {}),
+    message:
+      typeof candidate.message === 'string'
+        ? candidate.message
+        : 'The wallet request failed',
   }
 }
 
 function browserBootstrap(profiles: readonly BrowserProfile[]) {
   if (globalThis.window !== globalThis.window.top) return
+  type Emit = (name: string, data?: unknown) => void
+  const emitters = new Map<string, Emit>()
   const bridge = (
     globalThis as typeof globalThis & {
-      __oallet_request_v1__(request: {
-        method: string
-        params?: unknown
-        walletId: string
-      }): Promise<unknown>
+      __oallet_bridge_v1__(message: BridgeMessage): Promise<unknown>
+      __oallet_emit_v1__?: (
+        providerSessionId: string,
+        name: string,
+        data?: unknown,
+      ) => boolean
     }
-  ).__oallet_request_v1__
+  ).__oallet_bridge_v1__
+  ;(
+    globalThis as typeof globalThis & {
+      __oallet_emit_v1__?: (
+        providerSessionId: string,
+        name: string,
+        data?: unknown,
+      ) => boolean
+    }
+  ).__oallet_emit_v1__ = (providerSessionId, name, data) => {
+    const emit = emitters.get(providerSessionId)
+    if (!emit) return false
+    emit(name, data)
+    return true
+  }
   const fallbackIcon =
     'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="black"/><circle cx="16" cy="16" r="6" fill="white"/></svg>'
 
   for (const profile of profiles) {
     if (profile.kind !== 'eip155:eoa') continue
+    const providerSessionId = crypto.randomUUID()
     const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
-    let connected = false
-    const emit = (event: string, ...args: unknown[]) => {
-      for (const listener of listeners.get(event) ?? []) listener(...args)
+    let connected = true
+    const emit = (event: string, data?: unknown) => {
+      if (event === 'connect') connected = true
+      if (event === 'disconnect') connected = false
+      for (const listener of listeners.get(event) ?? []) listener(data)
     }
+    emitters.set(providerSessionId, emit)
+    let ready: Promise<void>
     const provider = {
       isConnected: () => connected,
       on(event: string, listener: (...args: unknown[]) => void) {
@@ -140,25 +427,29 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
         if (!request || typeof request.method !== 'string') {
           throw new Error('EIP-1193 request requires a method')
         }
-        const result = await bridge({
+        await ready
+        const requestId = crypto.randomUUID()
+        const response = (await bridge({
           method: request.method,
-          ...(request.params === undefined ? {} : { params: request.params }),
+          ...(request.params === undefined
+            ? {}
+            : { params: request.params as Json.Value }),
+          protocolVersion: 1,
+          providerSessionId,
+          requestId,
+          type: 'request',
           walletId: profile.id,
-        })
-        if (request.method === 'eth_requestAccounts') {
-          connected = true
-          emit('accountsChanged', result)
-          const chainId = await bridge({ method: 'eth_chainId', walletId: profile.id })
-          emit('connect', { chainId })
+        })) as RequestResponse
+        if (response.protocolVersion !== 1 || response.requestId !== requestId) {
+          throw new Error('Oallet returned an invalid browser response')
         }
-        if (
-          request.method === 'wallet_switchEthereumChain' ||
-          request.method === 'wallet_addEthereumChain'
-        ) {
-          const chainId = await bridge({ method: 'eth_chainId', walletId: profile.id })
-          emit('chainChanged', chainId)
+        if (response.error) {
+          throw Object.assign(new Error(response.error.message), {
+            code: response.error.code,
+            ...(response.error.data === undefined ? {} : { data: response.error.data }),
+          })
         }
-        return result
+        return response.result
       },
     }
     const detail = Object.freeze({
@@ -166,7 +457,7 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
         icon: profile.icon ?? fallbackIcon,
         name: profile.name,
         rdns: `dev.oallet.${profile.id.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
-        uuid: crypto.randomUUID(),
+        uuid: providerSessionId,
       }),
       provider,
     })
@@ -177,6 +468,16 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
         }),
       )
     globalThis.window.addEventListener('eip6963:requestProvider', announce)
-    queueMicrotask(announce)
+    ready = bridge({
+      protocolVersion: 1,
+      providerSessionId,
+      type: 'register',
+      walletId: profile.id,
+    }).then((state) => {
+      if (state && typeof state === 'object' && 'connected' in state) {
+        connected = state.connected === true
+      }
+      queueMicrotask(announce)
+    })
   }
 }

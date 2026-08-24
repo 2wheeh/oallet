@@ -1,1 +1,1 @@
-export { create, type Value } from './create.js'
+export { extend, type Value } from './extend.js'

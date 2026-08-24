@@ -24,7 +24,7 @@ The `oallet` umbrella package re-exports each package through a subpath:
 
 ```ts
 import { Environment } from 'oallet/core'
-import { Identity, Profile, Runtime, Wallet } from 'oallet/evm'
+import { Identity, Profile, Wallet } from 'oallet/evm'
 import { Browser, Fixture, Qr } from 'oallet/playwright'
 import { Client } from 'oallet/walletconnect'
 ```
@@ -36,7 +36,7 @@ Direct `@oallet/*` package imports expose the same namespace-based API.
 ```ts
 import { test as base } from '@playwright/test'
 import { Environment } from 'oallet/core'
-import { Identity, Profile, Runtime, Wallet } from 'oallet/evm'
+import { Identity, Profile, Wallet } from 'oallet/evm'
 import { Fixture } from 'oallet/playwright'
 import { http } from 'viem'
 import { anvil } from 'viem/chains'
@@ -48,22 +48,28 @@ const profile = Profile.eoa({
   name: 'Oallet',
 })
 
-const runtime = Runtime.create({
-  chains: [{ chain: anvil, transport: http(process.env.ANVIL_RPC_URL) }],
+export const test = Fixture.extend(base, {
+  environment: () =>
+    Environment.create({
+      wallets: [
+        Wallet.create({
+          chains: [
+            { chain: anvil, transport: http(process.env.ANVIL_RPC_URL) },
+          ],
+          profile,
+        }),
+      ],
+    }),
 })
-
-const environment = Environment.create({
-  wallets: [Wallet.create({ profile, runtime })],
-})
-
-export const test = base.extend<Fixture.Value>(Fixture.create({ environment }))
 ```
 
 Interactive requests are manual by default:
 
 ```ts
 const result = page.getByRole('button', { name: 'Connect' }).click()
-const request = await environment.wallet('test-wallet').requests.next()
+const request = await oallet
+  .wallet('test-wallet')
+  .requests.next('eth_requestAccounts')
 await request.approve()
 await result
 ```
@@ -71,18 +77,34 @@ await result
 Use a bounded auto-approval scope when the interaction itself is not under test:
 
 ```ts
-const stop = environment.wallet('test-wallet').startAutoApprove()
-try {
+await oallet.wallet('test-wallet').autoApprove(async () => {
   await page.getByRole('button', { name: 'Connect' }).click()
-} finally {
-  stop()
-}
+})
 ```
 
-Call `environment.reset()` explicitly at the lifecycle boundary selected by the test
-infrastructure. `environment.snapshot()` and `environment.restore(snapshot)` preserve
+Call `oallet.reset()` explicitly at the lifecycle boundary selected by the test
+infrastructure. `oallet.snapshot()` and `oallet.restore(snapshot)` preserve
 deterministic wallet and origin state; active WalletConnect sessions are intentionally
 not part of that portable snapshot.
+
+Approving an injected connection request returns an origin-scoped connection handle to
+the test while the dApp receives the protocol account list:
+
+```ts
+const request = await oallet
+  .wallet('test-wallet')
+  .requests.next('eth_requestAccounts')
+const connection = await request.approve()
+
+await connection.setAccounts([Identity.bob])
+await connection.switchChain(anvil.id)
+await connection.disconnect()
+await connection.reconnect()
+```
+
+`oallet.trace` is a versioned, read-only artifact containing redacted request,
+connection, provider-delivery, and environment lifecycle events. The Playwright
+fixture attaches JSON and text forms automatically when a test fails.
 
 ## WalletConnect
 
@@ -109,7 +131,9 @@ const proposal = await walletConnect
 expect(proposal.requiredNamespaces.eip155?.methods).toContain('personal_sign')
 const session = await proposal.approveSession()
 
-const request = await environment.wallet('test-wallet').requests.next()
+const request = await environment
+  .wallet('test-wallet')
+  .requests.next('personal_sign')
 await request.approve()
 
 await session.disconnect()

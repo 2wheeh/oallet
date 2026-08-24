@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Runtime, Wallet } from '@oallet/evm'
+import { Identity, Profile, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
 import { test as base, expect, type Locator } from '@playwright/test'
 import { Instance, Pool } from 'prool'
@@ -13,11 +13,17 @@ import {
   recoverTypedDataAddress,
   size,
 } from 'viem'
-import { anvil } from 'viem/chains'
+import { anvil, mainnet } from 'viem/chains'
 
-let environment: Environment.Instance
 let lease: Awaited<ReturnType<ReturnType<typeof Pool.create>['acquire']>>
 let pool: ReturnType<typeof Pool.create>
+
+const profile = Profile.eoa({
+  accounts: [Identity.alice, Identity.bob],
+  chains: [anvil.id, mainnet.id],
+  id: 'alice',
+  name: 'Oallet Test Wallet',
+})
 
 const typedData = {
   domain: { chainId: anvil.id, name: 'Oallet fixture', version: '1' },
@@ -26,23 +32,25 @@ const typedData = {
   types: { Message: [{ name: 'contents', type: 'string' }] },
 } as const
 
-const test = base.extend<{ oallet: Environment.Instance }>({
-  ...Fixture.create({ environment: () => environment }),
+const test = Fixture.extend(base, {
+  environment: () => {
+    return Environment.create({
+      wallets: [
+        Wallet.create({
+          chains: [
+            { chain: anvil, transport: http(lease.instance.url) },
+            { chain: mainnet, transport: http(lease.instance.url) },
+          ],
+          profile,
+        }),
+      ],
+    })
+  },
 })
 
 test.beforeAll(async () => {
   pool = Pool.create({ instance: Instance.anvil({ chainId: anvil.id }), limit: 1 })
   lease = await pool.acquire()
-  const runtime = Runtime.create({
-    chains: [{ chain: anvil, transport: http(lease.instance.url) }],
-  })
-  const profile = Profile.eoa({
-    accounts: [Identity.alice, Identity.bob],
-    chains: [anvil.id],
-    id: 'alice',
-    name: 'Oallet Test Wallet',
-  })
-  environment = Environment.create({ wallets: [Wallet.create({ profile, runtime })] })
 })
 
 test.afterAll(async () => {
@@ -51,9 +59,7 @@ test.afterAll(async () => {
 })
 
 test('Wagmi discovers Oallet and completes a real EOA flow', async ({ oallet, page }) => {
-  const stopAutoApprove = oallet.wallet('alice').startAutoApprove()
-
-  try {
+  await oallet.wallet('alice').autoApprove(async () => {
     await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
     await expect(
       page.getByRole('button', { name: 'Connect Oallet Test Wallet' }),
@@ -95,9 +101,83 @@ test('Wagmi discovers Oallet and completes a real EOA flow', async ({ oallet, pa
       true,
     )
     expect(transaction.value).toBe(1n)
-  } finally {
-    stopAutoApprove()
-  }
+  })
+})
+
+test('Wagmi surfaces a native connection rejection', async ({ oallet, page }) => {
+  await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
+  await page.getByRole('button', { name: 'Connect Oallet Test Wallet' }).click()
+  const request = await oallet.wallet('alice').requests.next('eth_requestAccounts')
+
+  request.reject({ code: 4001, message: 'User rejected connection' })
+
+  await expect(page.getByTestId('connect-error')).toContainText('"code":4001')
+  await expect(page.getByTestId('connect-error')).toContainText(
+    'User rejected connection',
+  )
+  await expect(page.getByTestId('status')).toHaveText('disconnected')
+})
+
+test('Wagmi follows account restore, reload, and reset', async ({ oallet, page }) => {
+  await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
+  await page.getByRole('button', { name: 'Connect Oallet Test Wallet' }).click()
+  const request = await oallet.wallet('alice').requests.next('eth_requestAccounts')
+  const connection = await request.approve()
+
+  await expect(page.getByTestId('account')).toHaveText(Identity.alice.address)
+  const snapshot = await oallet.snapshot()
+
+  await connection.setAccounts([Identity.bob])
+
+  await expect(page.getByTestId('account')).toHaveText(Identity.bob.address)
+
+  await oallet.restore(snapshot)
+
+  await expect(page.getByTestId('account')).toHaveText(Identity.alice.address)
+
+  await connection.setAccounts([Identity.bob])
+
+  await page.reload()
+
+  await expect(page.getByTestId('account')).toHaveText(Identity.bob.address)
+
+  await connection.switchChain(mainnet.id)
+
+  await expect(page.getByTestId('chain')).toHaveText(String(mainnet.id))
+
+  await connection.disconnect()
+
+  await expect(page.getByTestId('status')).toHaveText('disconnected')
+
+  await connection.reconnect()
+
+  await expect(page.getByTestId('status')).toHaveText('connected')
+  await expect(page.getByTestId('account')).toHaveText(Identity.bob.address)
+  const resetEvent = page.evaluate(async () => {
+    const detail = await new Promise<{
+      provider: {
+        on(event: string, listener: (value: unknown) => void): void
+        request(input: { method: string }): Promise<unknown>
+      }
+    }>((resolve) => {
+      window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) => {
+        resolve(event.detail)
+      }) as EventListener)
+      window.dispatchEvent(new Event('eip6963:requestProvider'))
+    })
+    return new Promise<unknown>((resolve) => {
+      detail.provider.on('accountsChanged', async (event) => {
+        resolve({
+          accounts: await detail.provider.request({ method: 'eth_accounts' }),
+          event,
+        })
+      })
+    })
+  })
+
+  await oallet.reset()
+
+  await expect(resetEvent).resolves.toEqual({ accounts: [], event: [] })
 })
 
 async function readHex(locator: Locator, byteSize: number): Promise<Hex> {

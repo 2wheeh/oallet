@@ -38,6 +38,7 @@ function setup() {
     reset() {},
     restore() {},
     snapshot: () => null,
+    validateSnapshot() {},
   }
   const environment = Environment.create({ wallets: [adapter] })
   const events = new EventEmitter()
@@ -134,7 +135,7 @@ test('routes session requests through the wallet approval queue', async () => {
     topic: 'session-topic',
     verifyContext: {},
   })
-  const request = await environment.wallet('wallet').requests.next()
+  const request = await environment.wallet('wallet').requests.next('personal_sign')
   expect(request.origin).toBe('walletconnect://session-topic')
   await request.approve()
 
