@@ -1,0 +1,17 @@
+{
+  "name": "oallet-packed-consumer",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.4",
+  "dependencies": {
+    "@oallet/core": "0.0.0",
+    "@oallet/evm": "0.0.0",
+    "@oallet/playwright": "0.0.0",
+    "@oallet/walletconnect": "0.0.0",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
+    "oallet": "0.0.0",
+    "typescript": "6.0.3",
+    "viem": "2.55.19"
+  }
+}
