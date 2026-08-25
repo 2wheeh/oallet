@@ -503,7 +503,7 @@ try {
 - out-of-order response는 후속 vendor/concurrency profile에서만 지원한다.
 - manual approval에는 별도 고정 timeout을 두지 않는다.
 - Playwright test cancellation/teardown이 pending request를 종료한다.
-- `nextRequest()`는 필요할 때 명시적 timeout을 받을 수 있다.
+- `wallet.requests.next()`는 `AbortSignal`을 받아 Playwright timeout과 teardown에 연결할 수 있다.
 - page close와 disconnect는 관련 pending request를 native error로 종료한다.
 
 ### 10.4 Control stream과 trace 분리
@@ -520,7 +520,7 @@ Control stream에는 사용자 결정이 필요한 request만 들어간다. 다�
 
 Profile에 선언되지 않은 wallet method는 pending으로 남기지 않고 protocol-native unsupported error를 즉시 반환한다.
 
-Custom method는 runtime handler로 등록하며 Profile capability와 handler가 불일치하면 environment 생성 시 fail-fast한다.
+MVP는 custom method handler를 제공하지 않는다. Typed registry와 runtime extension은 실제 consumer 요구가 생긴 뒤 추가한다.
 
 ## 11. EVM EOA
 
@@ -541,12 +541,11 @@ Oallet 직접 처리:
 - `eth_accounts`
 - `eth_chainId`
 - `wallet_switchEthereumChain`
-- `wallet_addEthereumChain`
 - `personal_sign`
 - `eth_signTypedData_v4`
 - `eth_sendTransaction`
 
-MVP에서 `eth_sign`은 지원하지 않는다.
+MVP에서 `wallet_addEthereumChain`과 `eth_sign`은 지원하지 않는다.
 
 ### 11.3 Safe EIP-1193 RPC proxy
 
@@ -569,37 +568,39 @@ Configured execution route가 있으면 EIP-1193 provider는 일반 read RPC를 
 - `personal_unlockAccount`, `personal_newAccount`, `personal_sendTransaction` 등 node keystore method
 - 알 수 없는 write/admin method
 
-`personal_sign`은 Oallet signer가 직접 처리한다. 추가 read method는 runtime allowlist로 열 수 있다.
+`personal_sign`은 Oallet signer가 직접 처리한다. MVP read allowlist는 고정되어 있으며 custom method extension은 제공하지 않는다.
 
 ### 11.4 Supported chain과 execution route
 
-Wallet이 지원하는 chain과 실제 RPC execution이 가능한 chain은 분리한다.
+Profile의 supported chain metadata와 viem runtime binding은 서로 다른 값이지만, MVP에서는 모든 supported chain에 실행 가능한 binding을 요구한다.
 
 ```ts
-const profile = wallet({
-  chains: [ethereum, localChain],
+const profile = Profile.eoa({
+  accounts: [Identity.alice],
+  chains: [ethereum.id, localChain.id],
+  id: 'alice',
+  name: 'Alice',
 })
 
-const runtime = evmRuntime({
-  execution: new Map([
-    [localChain.id, viemTransport],
-  ]),
+const wallet = Wallet.create({
+  profile,
+  chains: [
+    { chain: ethereum, transport: ethereumTransport },
+    { chain: localChain, transport: localTransport },
+  ],
 })
 ```
 
-- supported chain은 discovery, authorization, switching, signing에 사용한다.
-- execution route는 read RPC와 transaction submission에 사용한다.
-- execution route가 없는 chain에서 transaction을 요청하면 즉시 configuration error를 반환한다.
+- supported chain은 discovery, authorization, request routing, switching, signing에 사용한다.
+- 각 supported chain은 environment 생성 시점에 하나의 viem `Chain`과 `Transport` binding을 가져야 한다.
+- 직접 EIP-1193 요청은 origin connection의 active chain을 사용한다.
+- WalletConnect의 CAIP-2 chain context는 해당 chain으로 요청을 라우팅하지만 active chain을 바꾸거나 `chainChanged`를 발생시키지 않는다.
+- 명시적인 `wallet_switchEthereumChain`만 승인 후 active chain을 변경한다.
 - Oallet은 가짜 hash나 receipt를 만들지 않는다.
 
 ### 11.5 `wallet_addEthereumChain`
 
-dApp이 전달한 `rpcUrls`를 Controller가 실제 endpoint로 사용하지 않는다.
-
-- chain metadata와 URL은 approval request에 노출한다.
-- 승인하면 known-chain metadata를 추가할 수 있다.
-- 실제 execution은 test config에 미리 등록된 viem `Transport`만 사용한다.
-- 이를 통해 arbitrary public RPC 접근과 SSRF를 막는다.
+MVP에서는 즉시 `4200 Unsupported Method`로 거절한다. dApp이 전달한 chain metadata나 `rpcUrls`를 저장하거나 Controller endpoint로 사용하지 않는다. 동적 chain 추가가 실제 고객 테스트를 막는다는 증거가 생기면, 미리 등록된 viem `Transport`만 활성화하는 별도 승인 흐름으로 설계한다.
 
 ### 11.6 실제 transaction 제출
 
@@ -610,6 +611,8 @@ dApp이 전달한 `rpcUrls`를 Controller가 실제 endpoint로 사용하지 않
 3. preset key로 실제 transaction을 서명한다.
 4. `eth_sendRawTransaction`으로 제출한다.
 5. RPC가 반환한 실제 transaction hash를 dApp에 즉시 반환한다.
+
+MVP는 legacy(`0x0`), EIP-2930(`0x1`), EIP-1559(`0x2`) transaction을 지원한다. EIP-4844 blob transaction(`0x3`)과 알 수 없는 type은 승인 queue에 넣기 전에 `-32602 Invalid Params`로 거절한다.
 
 Oallet은 receipt까지 기다리거나 자동 mine하지 않는다. Inclusion, confirmation, receipt polling은 dApp SDK와 test infra의 책임이다.
 
@@ -1066,10 +1069,10 @@ Oallet은 branded wallet fidelity나 실제 AA execution을 수행하지 않은 
 - Browser Adapter는 dumb protocol facade다.
 - Profile은 serializable data이고 runtime binding과 분리한다.
 - interactive request는 manual이 기본이다.
-- auto approval은 `startAutoApprove()`가 반환하는 임시 scope로만 제공한다.
+- auto approval은 `wallet.autoApprove(callback)`의 callback lifetime으로만 제공한다.
 - multiple wallet, multiple account, multiple top-level origin을 MVP에서 지원한다.
-- active chain은 wallet-global이 아니라 connection/session별 상태다.
-- snapshot은 wallet state만 포함하고 chain state와 active WC cryptographic session은 제외한다.
+- active chain은 wallet-global이 아니라 origin connection별 상태다. WalletConnect request의 chain context는 별도의 요청 단위 값이다.
+- snapshot은 EVM origin connection의 accounts, active chain, connected 상태를 포함하지만 active WalletConnect cryptographic session은 포함하지 않는다.
 - trace는 항상 수집하고 실패 시 Playwright artifact로 자동 첨부한다.
 - Oallet assertion은 protocol-level까지만 제공한다.
 - 공식 package는 첫 release 이후 lockstep version을 사용한다.
@@ -1079,10 +1082,6 @@ Oallet은 branded wallet fidelity나 실제 AA execution을 수행하지 않은 
 
 - Browser–Controller channel codec의 exact schema
 - Playwright automatic fixture ordering과 pre-navigation 감지 방식
-- QR decoder library와 screenshot scanning interval
-- WalletKit storage Adapter와 test teardown 방식
-- viem transaction preparation의 지원 transaction type 범위
-- EIP-1193 read RPC 기본 allowlist
 - typed request registry와 custom method extension typing
 - trace JSON schema와 Playwright matcher 이름
 - Solana와 Cosmos의 exact derivation path
