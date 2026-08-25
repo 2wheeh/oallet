@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "type": "module",
   "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2wheeh/oallet.git",
+    "directory": "packages/core"
+  },
   "files": [
     "dist"
   ],

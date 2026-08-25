@@ -3,21 +3,29 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.4",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2wheeh/oallet.git"
+  },
   "engines": {
     "node": ">=22.11"
   },
   "scripts": {
     "build": "pnpm --filter './packages/**' --if-present build",
+    "changeset": "changeset",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:pack && pnpm test:build",
     "format": "biome format --write .",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "release": "pnpm build && changeset publish",
     "test": "pnpm -r --if-present test",
     "test:pack": "node scripts/test-packed-consumer.mjs",
     "test:build": "pnpm --filter './packages/**' --if-present test:build",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:"
+    "@biomejs/biome": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:"
   }
 }

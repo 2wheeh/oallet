@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "changelog": ["@changesets/changelog-github", { "repo": "2wheeh/oallet" }],
+  "commit": false,
+  "fixed": [
+    [
+      "@oallet/core",
+      "@oallet/evm",
+      "@oallet/playwright",
+      "@oallet/walletconnect",
+      "oallet"
+    ]
+  ],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}
