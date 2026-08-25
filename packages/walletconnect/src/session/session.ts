@@ -9,6 +9,5 @@ export type Namespaces = Readonly<Record<string, Namespace>>
 
 export type Instance = {
   readonly namespaces: Namespaces
-  readonly topic: string
   disconnect(): Promise<void>
 }

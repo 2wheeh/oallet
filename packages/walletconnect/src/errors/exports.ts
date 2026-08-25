@@ -1,8 +1,10 @@
 export {
+  ClientDisposedError,
   InvalidUriError,
   PairingInProgressError,
+  PairingResetError,
+  PairingTimeoutError,
   ProjectIdRequiredError,
   ProposalSettledError,
-  ProposalTimeoutError,
   UnsupportedNamespacesError,
 } from './errors.js'

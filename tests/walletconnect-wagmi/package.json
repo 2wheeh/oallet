@@ -1,0 +1,31 @@
+{
+  "name": "@oallet/test-walletconnect-wagmi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:*",
+    "@oallet/evm": "workspace:*",
+    "@oallet/playwright": "workspace:*",
+    "@oallet/walletconnect": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@walletconnect/ethereum-provider": "catalog:",
+    "qr": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "viem": "catalog:",
+    "vite": "catalog:",
+    "wagmi": "catalog:"
+  },
+  "devDependencies": {
+    "@oallet/config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

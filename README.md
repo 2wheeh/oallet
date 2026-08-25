@@ -115,21 +115,18 @@ separate test project ID rather than sharing production credentials.
 import { Qr } from 'oallet/playwright'
 import { Client } from 'oallet/walletconnect'
 
-const walletConnect = await Client.create({
-  customStoragePrefix: `oallet-${test.info().workerIndex}`,
+await using walletConnect = await Client.create({
   environment,
-  projectId: process.env.REOWN_TEST_PROJECT_ID!,
+  projectId: process.env.VITE_WC_PROJECT_ID!,
+  walletId: 'test-wallet',
 })
 
-const proposal = await walletConnect
-  .pairFromQr({
-    scan: () => Qr.scan(page.getByTestId('walletconnect-qr')),
-    walletId: 'test-wallet',
-  })
-  .nextSessionProposal()
+const proposal = await walletConnect.pair({
+  uri: await Qr.scan(page.getByTestId('walletconnect-qr')),
+})
 
 expect(proposal.requiredNamespaces.eip155?.methods).toContain('personal_sign')
-const session = await proposal.approveSession()
+const session = await proposal.approve()
 
 const request = await environment
   .wallet('test-wallet')
@@ -139,10 +136,15 @@ await request.approve()
 await session.disconnect()
 ```
 
+For TypeScript projects targeting ES2022, include `"ESNext.Disposable"` in
+`compilerOptions.lib` to type-check `await using`.
+
 Required namespaces are validated strictly. Optional namespaces are reduced to the
-supported chain, method, event, and account intersection. `walletConnect.reset()`
-disconnects sessions explicitly. Real-relay canaries require
-`REOWN_TEST_PROJECT_ID` and remain a release gate rather than a default unit test.
+supported chain, method, event, and account intersection. `await using` disposes the
+test-scoped relay client; `dispose()` is available for explicit `try/finally` cleanup.
+`walletConnect.reset()` clears in-flight pairing and sessions while keeping the client
+reusable. Real-relay canaries require
+`VITE_WC_PROJECT_ID` and remain a release gate rather than a default unit test.
 
 ## Validation
 

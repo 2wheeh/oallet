@@ -1,5 +1,5 @@
 {
-  "name": "@oallet/test-e2e",
+  "name": "@oallet/test-wagmi",
   "private": true,
   "type": "module",
   "scripts": {

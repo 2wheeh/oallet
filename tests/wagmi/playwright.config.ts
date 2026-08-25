@@ -8,7 +8,7 @@ export default defineConfig({
   testMatch: '*.e2e.ts',
   use: { baseURL: 'http://127.0.0.1:4173' },
   webServer: {
-    command: 'vite fixtures/wagmi --config fixtures/wagmi/vite.config.ts',
+    command: 'vite fixture --config fixture/vite.config.ts',
     reuseExistingServer: !process.env.CI,
     url: 'http://127.0.0.1:4173',
   },

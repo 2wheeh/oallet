@@ -12,4 +12,10 @@ export type {
   RequestReceived,
   RequestRejected,
   RequestReturned,
+  WalletConnectClientEvent,
+  WalletConnectEvent,
+  WalletConnectPairingFailed,
+  WalletConnectPairingStarted,
+  WalletConnectProposalEvent,
+  WalletConnectSessionDisconnected,
 } from './trace.js'

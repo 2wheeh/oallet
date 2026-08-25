@@ -83,6 +83,44 @@ export type EnvironmentEvent = Base & {
     | 'environment.snapshot'
 }
 
+type WalletConnectConnectionBase = Base & {
+  readonly connectionId: string
+  readonly walletId: string
+}
+
+export type WalletConnectPairingStarted = WalletConnectConnectionBase & {
+  readonly type: 'walletconnect.pairing.started'
+}
+
+export type WalletConnectPairingFailed = WalletConnectConnectionBase & {
+  readonly reason: 'dispose' | 'error' | 'reset' | 'timeout'
+  readonly type: 'walletconnect.pairing.failed'
+}
+
+export type WalletConnectProposalEvent = WalletConnectConnectionBase & {
+  readonly type:
+    | 'walletconnect.proposal.approved'
+    | 'walletconnect.proposal.received'
+    | 'walletconnect.proposal.rejected'
+}
+
+export type WalletConnectSessionDisconnected = WalletConnectConnectionBase & {
+  readonly reason: 'dispose' | 'peer' | 'reset' | 'session'
+  readonly type: 'walletconnect.session.disconnected'
+}
+
+export type WalletConnectClientEvent = Base & {
+  readonly type: 'walletconnect.client.disposed' | 'walletconnect.client.reset'
+  readonly walletId: string
+}
+
+export type WalletConnectEvent =
+  | WalletConnectClientEvent
+  | WalletConnectPairingFailed
+  | WalletConnectPairingStarted
+  | WalletConnectProposalEvent
+  | WalletConnectSessionDisconnected
+
 export type Event =
   | ConnectionEvent
   | EnvironmentEvent
@@ -93,6 +131,7 @@ export type Event =
   | RequestReceived
   | RequestRejected
   | RequestReturned
+  | WalletConnectEvent
 
 export type Input<EventType extends Event = Event> = EventType extends Event
   ? Omit<EventType, 'sequence' | 'timestamp'>

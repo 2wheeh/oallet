@@ -51,8 +51,7 @@
 - [x] Require a consumer-provided `projectId` whenever WalletConnect is enabled
 - [x] Pair through the real Reown relay without an injected fallback
 - [x] Decode `wc:` URIs from visible QR codes with a generic scanner
-- [x] Provide chainable `PairingFlow` helpers for pairing, proposal inspection,
-      approval, and rejection
+- [x] Provide direct `Client.pair()` proposal inspection, approval, and rejection
 - [x] Validate required namespaces strictly and approve supported optional
       intersections
 - [x] Route session requests through the same approval and EVM execution machinery

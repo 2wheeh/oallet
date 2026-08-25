@@ -15,9 +15,14 @@ export class PairingInProgressError extends Errors.BaseError {
   override name = 'WalletConnect.PairingInProgressError'
 }
 
-export class ProposalTimeoutError extends Errors.BaseError {
-  override readonly code = 'OALLET_WC_PROPOSAL_TIMEOUT'
-  override name = 'WalletConnect.ProposalTimeoutError'
+export class PairingTimeoutError extends Errors.BaseError {
+  override readonly code = 'OALLET_WC_PAIRING_TIMEOUT'
+  override name = 'WalletConnect.PairingTimeoutError'
+}
+
+export class PairingResetError extends Errors.BaseError {
+  override readonly code = 'OALLET_WC_PAIRING_RESET'
+  override name = 'WalletConnect.PairingResetError'
 }
 
 export class ProposalSettledError extends Errors.BaseError {
@@ -28,4 +33,9 @@ export class ProposalSettledError extends Errors.BaseError {
 export class UnsupportedNamespacesError extends Errors.BaseError {
   override readonly code = 'OALLET_WC_NAMESPACES_UNSUPPORTED'
   override name = 'WalletConnect.UnsupportedNamespacesError'
+}
+
+export class ClientDisposedError extends Errors.BaseError {
+  override readonly code = 'OALLET_WC_CLIENT_DISPOSED'
+  override name = 'WalletConnect.ClientDisposedError'
 }

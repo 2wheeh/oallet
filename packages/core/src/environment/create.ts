@@ -38,6 +38,7 @@ export type Controller = {
   }): void
   state(walletId: string, origin: string): Json.Value | undefined
   subscribe(listener: (event: ProviderEvent) => void | Promise<void>): () => void
+  traceWalletConnect(input: Trace.Input<Trace.WalletConnectEvent>): void
 }
 
 export const controller = Symbol('oallet.environment.controller')
@@ -223,6 +224,10 @@ export function create<const Adapters extends readonly Wallet.Adapter[]>(
         assertActive()
         listeners.add(listener)
         return () => listeners.delete(listener)
+      },
+      traceWalletConnect(input) {
+        assertActive()
+        journal.record(input)
       },
     },
     profiles: Object.freeze(options.wallets.map((wallet) => wallet.profile)),

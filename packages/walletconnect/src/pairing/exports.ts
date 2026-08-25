@@ -1,1 +1,1 @@
-export type { Flow, Proposal, RequestedNamespace } from './pairing.js'
+export type { Proposal } from './pairing.js'

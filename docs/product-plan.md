@@ -318,11 +318,15 @@ await signRequest.approve()
 WalletConnect 연결은 `SessionHandle`을 반환한다.
 
 ```ts
-const session = await wallet
-  .pairFromQr(page)
-  .approveSession()
+await using walletConnect = await Client.create({
+  environment,
+  projectId,
+  walletId: wallet.id,
+})
+const proposal = await walletConnect.pair({ uri: await Qr.scan(locator) })
+const session = await proposal.approve()
 
-const request = await session.nextRequest('personal_sign')
+const request = await wallet.requests.next('personal_sign')
 await request.approve()
 ```
 
@@ -634,12 +638,12 @@ WalletController
 Oallet은 Reown component selector를 핵심 seam으로 삼지 않는다. visible page/modal에서 QR을 찾아 `wc:` URI를 decode하는 generic visual scanner를 primary로 사용한다.
 
 ```ts
-const flow = wallet.pairFromQr(page, {
-  delay: 500,
+const proposal = await walletConnect.pair({
+  uri: await Qr.scan(page.getByTestId('walletconnect-qr')),
 })
 ```
 
-- QR scan은 테스트가 명시적으로 시작한다.
+- QR scan과 pairing은 테스트가 명시적으로 조합한다.
 - scanner는 `wc:` URI만 pairing 대상으로 인정한다.
 - 여러 QR이 있으면 custom locator/extractor로 범위를 좁힐 수 있다.
 - raw URI의 symmetric key는 result와 trace에서 redact한다.
@@ -649,9 +653,7 @@ const flow = wallet.pairFromQr(page, {
 검증이 필요한 테스트:
 
 ```ts
-const flow = wallet.pairFromQr(page)
-
-const proposal = await flow.nextSessionProposal()
+const proposal = await walletConnect.pair({ uri: await Qr.scan(locator) })
 expect(proposal.requiredNamespaces).toMatchObject(...)
 
 const session = await proposal.approve()
@@ -660,20 +662,19 @@ const session = await proposal.approve()
 Smoke test:
 
 ```ts
-const session = await wallet
-  .pairFromQr(page)
-  .approveSession()
+const session = await (
+  await walletConnect.pair({ uri: await Qr.scan(locator) })
+).approve()
 ```
 
 거절 테스트:
 
 ```ts
-await wallet
-  .pairFromQr(page)
-  .rejectSession(errors.walletConnect.userRejected())
+const proposal = await walletConnect.pair({ uri: await Qr.scan(locator) })
+await proposal.reject()
 ```
 
-Pairing 결과만 필요하면 `await flow.paired()`를 사용한다.
+`pair()`는 기본 30초 안에 proposal을 기다리며 테스트별로 `timeout`을 덮어쓸 수 있다.
 
 ### 12.4 Namespace negotiation
 
@@ -683,20 +684,15 @@ Pairing 결과만 필요하면 `await flow.paired()`를 사용한다.
 - optional namespace는 지원 가능한 교집합만 승인한다.
 - 테스트는 proposal의 required/optional namespace를 승인 전에 검사할 수 있다.
 - custom namespace를 승인하려면 명시적인 approval payload를 전달한다.
-- 승인 결과와 누락 capability를 trace에 기록한다.
+- 승인과 거절 lifecycle을 trace에 기록한다.
 
 ### 12.5 Session lifecycle
 
-`SessionHandle`은 다음을 제공한다.
+MVP `SessionHandle`은 승인된 `namespaces`와 idempotent `disconnect()`만 제공한다.
+session request는 별도 queue를 만들지 않고 해당 wallet의 request queue로 전달한다.
 
-- session-scoped request queue
-- account와 chain event
-- namespace update
-- disconnect
-- expiry
-- session metadata와 trace
-
-같은 테스트의 page reload에서는 Controller와 WalletKit이 살아 있으므로 session restore를 검증할 수 있다.
+namespace update, expiry, session metadata, page reload restoration은 실제 고객 테스트
+수요가 확인된 뒤 추가하는 후속 범위다.
 
 ### 12.6 CI 정책
 
@@ -973,7 +969,7 @@ MVP 공식 browser는 Chromium이다. Firefox와 WebKit은 막지 않지만 rele
 - viem-native execution route
 - actual EOA signing/submission
 - WalletKit actual relay peer
-- QR scanner와 PairingFlow
+- QR scanner와 direct proposal pairing
 - snapshot/reset/trace/assertions
 
 ### Phase 2 — Solana
