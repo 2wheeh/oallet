@@ -1,9 +1,63 @@
 import { Environment, Profile, type Wallet } from '@oallet/core'
-import { chromium } from '@playwright/test'
+import { chromium, devices } from '@playwright/test'
 import { expect, test } from 'vitest'
 
 import { DeliveryError } from '../errors/errors.js'
 import * as Browser from './exports.js'
+
+test('announces a provider when the initial document lacks crypto.randomUUID', async () => {
+  const profile = Profile.define({
+    data: {},
+    id: 'wallet',
+    kind: 'eip155:eoa',
+    name: 'Oallet Test Wallet',
+  })
+  const adapter: Wallet.Adapter = {
+    profile,
+    prepare() {
+      return { type: 'return', value: null }
+    },
+    reset() {},
+    restore() {},
+    snapshot: () => null,
+    validateSnapshot() {},
+  }
+  const environment = Environment.create({ wallets: [adapter] })
+  const browser = await chromium.launch({ headless: true })
+  const context = await browser.newContext(devices['Desktop Chrome'])
+  const pageErrors: Error[] = []
+  context.on('page', (page) => {
+    page.on('pageerror', (error) => pageErrors.push(error))
+  })
+  await context.route('https://app.example/**', (route) =>
+    route.fulfill({
+      body: '<!doctype html><title>Fixture</title>',
+      contentType: 'text/html',
+    }),
+  )
+  await Browser.attach({ context, environment })
+  const page = await context.newPage()
+
+  try {
+    await page.goto('https://app.example/')
+    const uuid = await page.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) =>
+            resolve(event.detail.info.uuid)) as EventListener)
+          window.dispatchEvent(new Event('eip6963:requestProvider'))
+        }),
+    )
+
+    expect(uuid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    )
+    expect(pageErrors).toEqual([])
+  } finally {
+    await context.close()
+    await browser.close()
+  }
+}, 30_000)
 
 test('announces an EIP-6963 provider before app code and bridges requests to the controller', async () => {
   const origins: string[] = []

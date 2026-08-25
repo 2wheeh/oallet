@@ -370,6 +370,17 @@ function providerError(error: unknown): NonNullable<RequestResponse['error']> {
 
 function browserBootstrap(profiles: readonly BrowserProfile[]) {
   if (globalThis.window !== globalThis.window.top) return
+  if (!['http:', 'https:'].includes(globalThis.location.protocol)) return
+  const randomUuid = () => {
+    if (typeof globalThis.crypto.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID()
+    }
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+    bytes[6] = ((bytes.at(6) ?? 0) & 0x0f) | 0x40
+    bytes[8] = ((bytes.at(8) ?? 0) & 0x3f) | 0x80
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
   type Emit = (name: string, data?: unknown) => void
   const emitters = new Map<string, Emit>()
   const bridge = (
@@ -401,7 +412,7 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
 
   for (const profile of profiles) {
     if (profile.kind !== 'eip155:eoa') continue
-    const providerSessionId = crypto.randomUUID()
+    const providerSessionId = randomUuid()
     const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
     let connected = true
     const emit = (event: string, data?: unknown) => {
@@ -428,7 +439,7 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
           throw new Error('EIP-1193 request requires a method')
         }
         await ready
-        const requestId = crypto.randomUUID()
+        const requestId = randomUuid()
         const response = (await bridge({
           method: request.method,
           ...(request.params === undefined
