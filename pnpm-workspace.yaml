@@ -5,6 +5,15 @@ packages:
 autoInstallPeers: false
 strictPeerDependencies: true
 
+overrides:
+  'cuer>qr': 0.5.5
+  'valtio>use-sync-external-store': 1.6.0
+  '@delight-labs/delightkit': file:./tests/delightkit/vendor/delight-labs-delightkit-0.0.0.tgz
+  '@delight-labs/delightkit-core': file:./tests/delightkit/vendor/delight-labs-delightkit-core-0.0.0.tgz
+  '@delight-labs/delightkit-cosmos': file:./tests/delightkit/vendor/delight-labs-delightkit-cosmos-0.0.0.tgz
+  '@delight-labs/delightkit-evm': file:./tests/delightkit/vendor/delight-labs-delightkit-evm-0.0.0.tgz
+  '@delight-labs/delightkit-walletconnect': file:./tests/delightkit/vendor/delight-labs-delightkit-walletconnect-0.0.0.tgz
+
 peerDependencyRules:
   allowedVersions:
     # WalletConnect's transitive Solana packages have not widened their peer range for TypeScript 6 yet.
@@ -18,6 +27,7 @@ catalog:
   '@types/react': ^19.2.18
   '@types/react-dom': ^19.2.4
   '@vitejs/plugin-react': ^6.1.0
+  '@wagmi/core': ^3.6.4
   '@reown/walletkit': 1.5.6
   '@types/pngjs': ^6.0.5
   '@walletconnect/core': 2.23.10

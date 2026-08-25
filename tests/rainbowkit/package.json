@@ -1,0 +1,32 @@
+{
+  "name": "@oallet/test-rainbowkit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:*",
+    "@oallet/evm": "workspace:*",
+    "@oallet/playwright": "workspace:*",
+    "@oallet/walletconnect": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@rainbow-me/rainbowkit": "2.2.11",
+    "@tanstack/react-query": "catalog:",
+    "buffer": "6.0.3",
+    "events": "3.3.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "viem": "catalog:",
+    "vite": "catalog:",
+    "wagmi": "2.19.3"
+  },
+  "devDependencies": {
+    "@oallet/config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@oallet/test-delightkit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@delight-labs/delightkit": "file:vendor/delight-labs-delightkit-0.0.0.tgz",
+    "@delight-labs/delightkit-core": "file:vendor/delight-labs-delightkit-core-0.0.0.tgz",
+    "@delight-labs/delightkit-cosmos": "file:vendor/delight-labs-delightkit-cosmos-0.0.0.tgz",
+    "@delight-labs/delightkit-evm": "file:vendor/delight-labs-delightkit-evm-0.0.0.tgz",
+    "@delight-labs/delightkit-walletconnect": "file:vendor/delight-labs-delightkit-walletconnect-0.0.0.tgz",
+    "@oallet/core": "workspace:*",
+    "@oallet/evm": "workspace:*",
+    "@oallet/playwright": "workspace:*",
+    "@oallet/walletconnect": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@wagmi/core": "catalog:",
+    "@wallet-standard/base": "^1.1.1",
+    "@wallet-standard/features": "^1.1.1",
+    "@solana/wallet-standard-features": "^1.4.0",
+    "@cosmjs/amino": "^0.38.1",
+    "@cosmjs/proto-signing": "^0.38.1",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "qr": "catalog:",
+    "viem": "catalog:",
+    "vite": "catalog:",
+    "wagmi": "catalog:"
+  },
+  "devDependencies": {
+    "@oallet/config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

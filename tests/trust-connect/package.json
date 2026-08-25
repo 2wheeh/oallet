@@ -1,0 +1,35 @@
+{
+  "name": "@oallet/test-trust-connect",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:*",
+    "@oallet/evm": "workspace:*",
+    "@oallet/playwright": "workspace:*",
+    "@oallet/walletconnect": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@trustwallet/connect-bip122-react": "0.0.0",
+    "@trustwallet/connect-core": "0.0.0",
+    "@trustwallet/connect-eip155-react": "0.0.0",
+    "@trustwallet/connect-headless": "0.0.0",
+    "@trustwallet/connect-react": "0.0.0",
+    "@trustwallet/connect-solana-react": "0.0.0",
+    "@trustwallet/connect-walletconnect": "0.0.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "viem": "catalog:",
+    "vite": "catalog:"
+  },
+  "devDependencies": {
+    "@oallet/config": "workspace:*",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:"
+  }
+}
