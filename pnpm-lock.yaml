@@ -45,6 +45,9 @@ catalogs:
     '@walletconnect/jsonrpc-utils':
       specifier: 1.0.8
       version: 1.0.8
+    '@walletconnect/sign-client':
+      specifier: 2.23.10
+      version: 2.23.10
     '@walletconnect/utils':
       specifier: 2.23.10
       version: 2.23.10
@@ -570,6 +573,12 @@ importers:
       '@walletconnect/ethereum-provider':
         specifier: 'catalog:'
         version: 2.23.10(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(use-sync-external-store@1.6.0(react@19.2.8))(utf-8-validate@5.0.10)(zod@4.4.3)
+      '@walletconnect/sign-client':
+        specifier: 'catalog:'
+        version: 2.23.10(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+      prool:
+        specifier: 'catalog:'
+        version: 0.2.14
       qr:
         specifier: 'catalog:'
         version: 0.6.0

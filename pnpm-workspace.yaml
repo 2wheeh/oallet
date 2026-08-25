@@ -33,6 +33,7 @@ catalog:
   '@walletconnect/core': 2.23.10
   '@walletconnect/ethereum-provider': 2.23.10
   '@walletconnect/jsonrpc-utils': 1.0.8
+  '@walletconnect/sign-client': 2.23.10
   '@walletconnect/utils': 2.23.10
   pngjs: 7.0.0
   prool: ^0.2.14
