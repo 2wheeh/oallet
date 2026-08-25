@@ -211,6 +211,143 @@ test('presents a scoped transaction on its request chain', async () => {
   expect(await responseResult).toMatchObject({ providerCode: 4001 })
 })
 
+test.each(['0x3', '0x4'])(
+  'rejects unsupported transaction type %s before requesting approval',
+  async (type) => {
+    const { environment, wallet } = setup()
+    await wallet.autoApprove(() =>
+      environment.dispatch({
+        method: 'eth_requestAccounts',
+        origin: 'https://app.example',
+        walletId: 'wallet',
+      }),
+    )
+    const response = environment.dispatch({
+      method: 'eth_sendTransaction',
+      origin: 'https://app.example',
+      params: [
+        {
+          from: Identity.alice.address,
+          to: Identity.bob.address,
+          type,
+          value: '0x1',
+        },
+      ],
+      walletId: 'wallet',
+    })
+    const observed = await Promise.race([
+      response.catch((error: unknown) => error),
+      wallet.requests.next('eth_sendTransaction'),
+    ])
+
+    if (observed instanceof Error) {
+      expect(observed).toBeInstanceOf(Errors.InvalidParamsError)
+    } else if (isRequestHandle(observed)) {
+      observed.reject()
+      await expect(response).rejects.toMatchObject({ providerCode: 4001 })
+      throw new Error('Unsupported transaction reached the approval queue')
+    } else {
+      throw new Error('Transaction produced an unknown result')
+    }
+  },
+)
+
+test.each([
+  ['numeric type', { type: 2 }],
+  ['unsafe nonce', { nonce: '0x20000000000000' }],
+  ['malformed sender', { from: '0x1234' }],
+  ['malformed recipient', { to: '0x1234' }],
+  ['malformed data', { data: 'hello' }],
+  ['non-hex quantity', { value: '1' }],
+] as const)(
+  'rejects a transaction with %s before requesting approval',
+  async (_case, invalidFields) => {
+    const { environment, wallet } = setup()
+    await wallet.autoApprove(() =>
+      environment.dispatch({
+        method: 'eth_requestAccounts',
+        origin: 'https://app.example',
+        walletId: 'wallet',
+      }),
+    )
+    const response = environment.dispatch({
+      method: 'eth_sendTransaction',
+      origin: 'https://app.example',
+      params: [
+        {
+          from: Identity.alice.address,
+          to: Identity.bob.address,
+          ...invalidFields,
+        },
+      ],
+      walletId: 'wallet',
+    })
+    const observed = await Promise.race([
+      response.catch((error: unknown) => error),
+      wallet.requests.next('eth_sendTransaction'),
+    ])
+
+    if (isRequestHandle(observed)) {
+      observed.reject()
+      await response.catch(() => undefined)
+    }
+    expect(observed).toBeInstanceOf(Errors.InvalidParamsError)
+  },
+)
+
+function isRequestHandle(value: unknown): value is { reject(): void } {
+  return value !== null && typeof value === 'object' && 'reject' in value
+}
+
+test('rejects an unauthorized transaction sender before requesting approval', async () => {
+  const { environment, wallet } = setup()
+  const connectResponse = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await connectResponse
+  await connection.setAccounts([Identity.alice])
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_sendTransaction',
+      origin: 'https://app.example',
+      params: [{ from: Identity.bob.address, to: Identity.alice.address, value: '0x1' }],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.UnauthorizedError)
+})
+
+test('rejects a transaction chain that conflicts with its request chain', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
+
+  await expect(
+    environment.dispatch({
+      chainId: 'eip155:1',
+      method: 'eth_sendTransaction',
+      origin: 'https://app.example',
+      params: [
+        {
+          chainId: '0x7a69',
+          from: Identity.alice.address,
+          to: Identity.bob.address,
+          value: '0x1',
+        },
+      ],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.ChainNotConfiguredError)
+})
+
 test('switches the active chain through the approved connection', async () => {
   const { environment, wallet } = setup()
   const response = environment.dispatch({

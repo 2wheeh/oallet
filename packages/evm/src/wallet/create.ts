@@ -3,6 +3,7 @@ import {
   type Address,
   createWalletClient,
   type Hex,
+  isAddress,
   isAddressEqual,
   isHex,
   numberToHex,
@@ -684,6 +685,7 @@ function chainIdParameter(params: Json.Value | undefined) {
 }
 
 function findAccount(accounts: ReturnType<typeof Identity.account>[], address: string) {
+  if (!isAddress(address)) invalidParams('account')
   const account = accounts.find((candidate) =>
     isAddressEqual(candidate.address, address as Address),
   )
@@ -713,28 +715,47 @@ function normalizeTransaction(transaction: Record<string, Json.Value>) {
     if (
       ['gas', 'gasPrice', 'maxFeePerGas', 'maxPriorityFeePerGas', 'value'].includes(key)
     ) {
-      if (typeof value !== 'string' || !isHex(value)) invalidParams('eth_sendTransaction')
-      normalized[key] = BigInt(value)
+      normalized[key] = transactionQuantity(value)
       continue
     }
     if (key === 'nonce') {
-      if (typeof value !== 'string' || !isHex(value)) invalidParams('eth_sendTransaction')
-      normalized[key] = Number(BigInt(value))
+      const nonce = Number(transactionQuantity(value))
+      if (!Number.isSafeInteger(nonce)) invalidParams('eth_sendTransaction')
+      normalized[key] = nonce
       continue
     }
     if (key === 'chainId') {
-      if (typeof value !== 'string' || !isHex(value)) invalidParams('eth_sendTransaction')
-      normalized[key] = Number(BigInt(value))
+      const chainId = Number(transactionQuantity(value))
+      if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+        invalidParams('eth_sendTransaction')
+      }
+      normalized[key] = chainId
       continue
     }
-    if (key === 'type' && typeof value === 'string') {
+    if (key === 'to') {
+      if (typeof value !== 'string' || !isAddress(value)) {
+        invalidParams('eth_sendTransaction')
+      }
+      normalized[key] = value
+      continue
+    }
+    if (key === 'data') {
+      if (typeof value !== 'string' || !isHex(value)) {
+        invalidParams('eth_sendTransaction')
+      }
+      normalized[key] = value
+      continue
+    }
+    if (key === 'type') {
+      if (typeof value !== 'string') invalidParams('eth_sendTransaction')
       const types: Record<string, string> = {
         '0x0': 'legacy',
         '0x1': 'eip2930',
         '0x2': 'eip1559',
-        '0x3': 'eip4844',
       }
-      normalized[key] = types[value] ?? value
+      const type = types[value]
+      if (!type) invalidParams('eth_sendTransaction')
+      normalized[key] = type
       continue
     }
     normalized[key] = value
@@ -744,4 +765,11 @@ function normalizeTransaction(transaction: Record<string, Json.Value>) {
     data?: Hex | undefined
     to?: Address | undefined
   }
+}
+
+function transactionQuantity(value: Json.Value) {
+  if (typeof value !== 'string' || !/^0x[0-9a-f]+$/i.test(value)) {
+    invalidParams('eth_sendTransaction')
+  }
+  return BigInt(value)
 }
