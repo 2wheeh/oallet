@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { custom, type Hex, recoverMessageAddress } from 'viem'
+import { custom, type Hex, recoverMessageAddress, recoverTypedDataAddress } from 'viem'
 import { anvil, mainnet } from 'viem/chains'
 import { expect, test } from 'vitest'
 
@@ -7,6 +7,13 @@ import * as Errors from '../errors/exports.js'
 import * as Identity from '../identity/exports.js'
 import * as Profile from '../profile/exports.js'
 import * as Wallet from './exports.js'
+
+const typedData = {
+  domain: { chainId: mainnet.id, name: 'Oallet test', version: '1' },
+  message: { contents: 'Hello typed data' },
+  primaryType: 'Message',
+  types: { Message: [{ name: 'contents', type: 'string' }] },
+} as const
 
 function setup() {
   const profile = Profile.eoa({
@@ -98,6 +105,106 @@ test('signs personal messages only after authorization', async () => {
       signature: await signature,
     }),
   ).resolves.toBe(Identity.alice.address)
+})
+
+test('rejects malformed typed data before requesting approval', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
+  const response = environment.dispatch({
+    chainId: 'eip155:1',
+    method: 'eth_signTypedData_v4',
+    origin: 'https://app.example',
+    params: [
+      Identity.alice.address,
+      JSON.stringify({ domain: {}, message: {}, primaryType: 'Mail', types: {} }),
+    ],
+    walletId: 'wallet',
+  })
+  const observed = await Promise.race([
+    response.catch((error: unknown) => error),
+    wallet.requests.next('eth_signTypedData_v4'),
+  ])
+
+  if (isRequestHandle(observed)) {
+    observed.reject()
+    await response.catch(() => undefined)
+  }
+  expect(observed).toBeInstanceOf(Errors.InvalidParamsError)
+})
+
+test('signs valid typed data for an authorized account', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
+  const signaturePromise = environment.dispatch<Hex>({
+    chainId: 'eip155:1',
+    method: 'eth_signTypedData_v4',
+    origin: 'https://app.example',
+    params: [Identity.alice.address, JSON.stringify(typedData)],
+    walletId: 'wallet',
+  })
+  const request = await wallet.requests.next('eth_signTypedData_v4')
+
+  expect(request.chainId).toBe('eip155:1')
+  await request.approve()
+  await expect(
+    recoverTypedDataAddress({
+      ...typedData,
+      signature: await signaturePromise,
+    }),
+  ).resolves.toBe(Identity.alice.address)
+})
+
+test('rejects invalid typed-data JSON', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_signTypedData_v4',
+      origin: 'https://app.example',
+      params: [Identity.alice.address, '{not-json'],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.InvalidParamsError)
+})
+
+test('rejects typed data for an account not authorized by the connection', async () => {
+  const { environment, wallet } = setup()
+  const connectResponse = environment.dispatch({
+    method: 'eth_requestAccounts',
+    origin: 'https://app.example',
+    walletId: 'wallet',
+  })
+  const connection = await (await wallet.requests.next('eth_requestAccounts')).approve()
+  await connectResponse
+  await connection.setAccounts([Identity.alice])
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_signTypedData_v4',
+      origin: 'https://app.example',
+      params: [Identity.bob.address, JSON.stringify(typedData)],
+      walletId: 'wallet',
+    }),
+  ).rejects.toBeInstanceOf(Errors.UnauthorizedError)
 })
 
 test('changes the authorized accounts through the approved connection', async () => {

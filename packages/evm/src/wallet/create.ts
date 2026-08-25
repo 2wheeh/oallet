@@ -7,6 +7,7 @@ import {
   isAddressEqual,
   isHex,
   numberToHex,
+  validateTypedData,
 } from 'viem'
 import type * as Connection from '../connection/connection.js'
 import {
@@ -191,6 +192,11 @@ export function create(options: create.Options): Instance {
         const account = findAccount(accounts, address)
         ensureAuthorized(connection, account.address)
         const typedData = parseJsonObject(encoded, input.method)
+        try {
+          validateTypedData(typedData as never)
+        } catch (cause) {
+          throw new InvalidParamsError('Typed data is invalid', { cause })
+        }
         return {
           type: 'interactive',
           approve: () => account.signTypedData(typedData as never),
