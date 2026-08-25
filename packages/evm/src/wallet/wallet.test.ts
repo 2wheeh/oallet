@@ -15,18 +15,18 @@ function setup() {
     id: 'wallet',
     name: 'Wallet',
   })
-  const provider = {
+  const provider = (blockNumber: Hex) => ({
     async request({ method }: { method: string }) {
-      if (method === 'eth_blockNumber') return '0x2a'
+      if (method === 'eth_blockNumber') return blockNumber
       throw new Error(`Unexpected RPC method: ${method}`)
     },
-  }
+  })
   const environment = Environment.create({
     wallets: [
       Wallet.create({
         chains: [
-          { chain: mainnet, transport: custom(provider) },
-          { chain: anvil, transport: custom(provider) },
+          { chain: mainnet, transport: custom(provider('0x2a')) },
+          { chain: anvil, transport: custom(provider('0x7a69')) },
         ],
         profile,
       }),
@@ -154,6 +154,61 @@ test('keeps active chain state scoped to each origin', async () => {
       walletId: 'wallet',
     }),
   ).resolves.toBe('0x1')
+})
+
+test('routes a scoped request without changing the active chain', async () => {
+  const { environment } = setup()
+
+  await expect(
+    environment.dispatch({
+      chainId: 'eip155:31337',
+      method: 'eth_blockNumber',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x7a69')
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x1')
+})
+
+test('presents a scoped transaction on its request chain', async () => {
+  const { environment, wallet } = setup()
+  await wallet.autoApprove(() =>
+    environment.dispatch({
+      method: 'eth_requestAccounts',
+      origin: 'https://app.example',
+      walletId: 'wallet',
+    }),
+  )
+  const response = environment.dispatch({
+    chainId: 'eip155:31337',
+    method: 'eth_sendTransaction',
+    origin: 'https://app.example',
+    params: [{ from: Identity.alice.address, to: Identity.bob.address, value: '0x1' }],
+    walletId: 'wallet',
+  })
+  const responseResult = response.catch((error: unknown) => error)
+  const request = await wallet.requests.next('eth_sendTransaction')
+
+  try {
+    expect(request.chainId).toBe('eip155:31337')
+    expect(request.data).toMatchObject({ chainId: anvil.id })
+    await expect(
+      environment.dispatch({
+        method: 'eth_chainId',
+        origin: 'https://app.example',
+        walletId: 'wallet',
+      }),
+    ).resolves.toBe('0x1')
+  } finally {
+    request.reject()
+  }
+  expect(await responseResult).toMatchObject({ providerCode: 4001 })
 })
 
 test('switches the active chain through the approved connection', async () => {

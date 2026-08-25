@@ -3,6 +3,7 @@ import type * as Profile from '../profile/profile.js'
 import type * as Request from '../request/request.js'
 
 export type Input = {
+  readonly chainId?: string | undefined
   readonly method: string
   readonly origin: string
   readonly params?: Json.Value | undefined

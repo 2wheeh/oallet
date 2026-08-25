@@ -117,6 +117,7 @@ export function create(options: create.Options): Instance {
         profile.data.defaultChainId,
       )
       ensureProviderConnected(connection)
+      const requestChainId = resolveRequestChainId(input, connection, profile, runtime)
       if (input.method === 'eth_accounts') {
         return {
           type: 'return',
@@ -141,7 +142,7 @@ export function create(options: create.Options): Instance {
         }
       }
       if (input.method === 'eth_chainId') {
-        return { type: 'return', value: numberToHex(connection.chainId) }
+        return { type: 'return', value: numberToHex(requestChainId) }
       }
       if (input.method === 'wallet_addEthereumChain') {
         throw new UnsupportedMethodError(
@@ -209,14 +210,14 @@ export function create(options: create.Options): Instance {
         if (typeof request.from !== 'string') invalidParams(input.method)
         const account = findAccount(accounts, request.from)
         ensureAuthorized(connection, account.address)
-        const binding = runtime.get(connection.chainId)
+        const binding = runtime.get(requestChainId)
         const transactionRequest = normalizeTransaction(request)
         if (
           transactionRequest.chainId !== undefined &&
-          transactionRequest.chainId !== connection.chainId
+          transactionRequest.chainId !== requestChainId
         ) {
           throw new ChainNotConfiguredError(
-            `Transaction chain ${transactionRequest.chainId} does not match active chain ${connection.chainId}`,
+            `Transaction chain ${transactionRequest.chainId} does not match request chain ${requestChainId}`,
           )
         }
         return {
@@ -230,13 +231,13 @@ export function create(options: create.Options): Instance {
           },
           data: {
             account: account.address,
-            chainId: connection.chainId,
+            chainId: requestChainId,
             type: 'sendTransaction',
           },
         }
       }
       if (readMethods.has(input.method)) {
-        const value = await runtime.request(connection.chainId, {
+        const value = await runtime.request(requestChainId, {
           method: input.method,
           ...(input.params === undefined
             ? {}
@@ -641,6 +642,29 @@ function tuple(
 ): readonly Json.Value[] {
   if (!Array.isArray(params) || params.length < minimumLength) invalidParams('request')
   return params
+}
+
+function resolveRequestChainId(
+  input: CoreWallet.Input,
+  connection: ConnectionState,
+  profile: Profile.Definition,
+  runtime: Runtime.Instance,
+) {
+  if (input.chainId === undefined) return connection.chainId
+  const match = /^eip155:(\d+)$/.exec(input.chainId)
+  const chainId = match?.[1] === undefined ? Number.NaN : Number(match[1])
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new InvalidParamsError(
+      `Request chain ${input.chainId} is not a valid EIP-155 chain`,
+    )
+  }
+  if (!profile.data.chains.includes(chainId)) {
+    throw new ChainNotConfiguredError(
+      `Chain ${chainId} is not supported by ${profile.id}`,
+    )
+  }
+  runtime.get(chainId)
+  return chainId
 }
 
 function invalidParams(method: string): never {

@@ -14,6 +14,7 @@ type Base = {
 }
 
 type RequestBase = Base & {
+  readonly chainId?: string | undefined
   readonly method: string
   readonly origin: string
   readonly providerSessionId?: string | undefined

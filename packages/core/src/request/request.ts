@@ -9,6 +9,7 @@ export type Rejection = {
 }
 
 export type Handle<Result = unknown> = {
+  readonly chainId?: string | undefined
   readonly data: Json.Value
   readonly id: string
   readonly method: string

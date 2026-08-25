@@ -5,6 +5,11 @@ import { expect, test, vi } from 'vitest'
 import { create, createWithPeer, type Peer } from './create.js'
 
 function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
+  let emitProviderEvent: Wallet.AdapterContext['emit'] = async () => undefined
+  let activeChainId = '0x1'
+  const approveConnection = vi.fn(async () => [
+    '0x0000000000000000000000000000000000000001',
+  ])
   const profile = Profile.define({
     data: {
       accounts: [{ address: '0x0000000000000000000000000000000000000001' }],
@@ -16,23 +21,44 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
     name: 'Wallet',
   })
   const adapter: Wallet.Adapter = {
+    bind(context) {
+      emitProviderEvent = context.emit
+    },
     profile,
     prepare(input) {
       if (input.method === 'eth_requestAccounts') {
         return {
           type: 'interactive',
-          approve: () => ['0x0000000000000000000000000000000000000001'],
+          approve: approveConnection,
           data: { type: 'connect' },
         }
       }
-      if (input.method === 'eth_chainId') return { type: 'return', value: '0x1' }
+      if (input.method === 'eth_chainId') {
+        return { type: 'return', value: activeChainId }
+      }
       if (input.method === 'wallet_switchEthereumChain') {
-        return { type: 'interactive', approve: () => null, data: { type: 'switchChain' } }
+        return {
+          type: 'interactive',
+          approve: async () => {
+            const chainId = (input.params as [{ chainId: string }])[0].chainId
+            activeChainId = chainId
+            await emitProviderEvent({
+              data: chainId,
+              name: 'chainChanged',
+              origin: input.origin,
+            })
+            return null
+          },
+          data: { type: 'switchChain' },
+        }
       }
       return {
         type: 'interactive',
         approve: () => '0xsigned',
-        data: { type: 'sign' },
+        data: {
+          ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
+          type: 'sign',
+        },
       }
     },
     reset() {},
@@ -46,9 +72,11 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
     approvedSession(input.namespaces),
   )
   const respondSessionRequest = vi.fn(async () => undefined)
+  const emitSessionEvent = vi.fn(async () => undefined)
   const peer = {
     approveSession,
     disconnectSession: vi.fn(async () => undefined),
+    emitSessionEvent,
     getActiveSessions: () => ({}),
     off: events.off.bind(events),
     on: events.on.bind(events),
@@ -61,7 +89,16 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
     peer,
     lifecycle,
   )
-  return { approveSession, client, environment, events, peer, respondSessionRequest }
+  return {
+    approveConnection,
+    approveSession,
+    client,
+    emitSessionEvent,
+    environment,
+    events,
+    peer,
+    respondSessionRequest,
+  }
 }
 
 function approvedSession(namespaces: unknown) {
@@ -155,7 +192,185 @@ test('routes session requests through the wallet approval queue', async () => {
   })
 })
 
-function proposal(options: { id?: number; pairingTopic?: string } = {}) {
+test('routes an approved chain request without changing the active chain', async () => {
+  const { client, emitSessionEvent, environment, events } = setup()
+  const pairing = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit(
+    'session_proposal',
+    proposal({
+      optionalChain: 'eip155:31337',
+      optionalEvents: ['chainChanged'],
+      optionalMethods: ['wallet_switchEthereumChain'],
+    }),
+  )
+  await (await pairing).approve()
+
+  events.emit('session_request', {
+    id: 46,
+    params: {
+      chainId: 'eip155:31337',
+      request: {
+        method: 'personal_sign',
+        params: ['0x6869', '0x0000000000000000000000000000000000000001'],
+      },
+    },
+    topic: 'session-topic',
+    verifyContext: {},
+  })
+  const request = await environment.wallet('wallet').requests.next('personal_sign')
+
+  expect(request.chainId).toBe('eip155:31337')
+  expect(request.data).toEqual({ chainId: 'eip155:31337', type: 'sign' })
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: request.origin,
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x1')
+  expect(emitSessionEvent).not.toHaveBeenCalled()
+  request.reject()
+})
+
+test('preserves provider errors when rejecting a session request', async () => {
+  const { client, environment, events, respondSessionRequest } = setup()
+  const pairing = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit('session_proposal', proposal())
+  await (await pairing).approve()
+
+  events.emit('session_request', {
+    id: 44,
+    params: {
+      chainId: 'eip155:1',
+      request: {
+        method: 'personal_sign',
+        params: ['0x6869', '0x0000000000000000000000000000000000000001'],
+      },
+    },
+    topic: 'session-topic',
+    verifyContext: {},
+  })
+  const request = await environment.wallet('wallet').requests.next('personal_sign')
+  request.reject({
+    code: 4001,
+    data: { reason: 'denied in wallet' },
+    message: 'User rejected the request',
+  })
+
+  await vi.waitFor(() => {
+    expect(respondSessionRequest).toHaveBeenCalledWith({
+      response: {
+        error: {
+          code: 4001,
+          data: { reason: 'denied in wallet' },
+          message: 'User rejected the request',
+        },
+        id: 44,
+        jsonrpc: '2.0',
+      },
+      topic: 'session-topic',
+    })
+  })
+})
+
+test('cancels pending requests when the peer deletes the session', async () => {
+  const { client, environment, events, respondSessionRequest } = setup()
+  const pairing = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit('session_proposal', proposal())
+  await (await pairing).approve()
+
+  events.emit('session_request', {
+    id: 45,
+    params: {
+      chainId: 'eip155:1',
+      request: {
+        method: 'personal_sign',
+        params: ['0x6869', '0x0000000000000000000000000000000000000001'],
+      },
+    },
+    topic: 'session-topic',
+    verifyContext: {},
+  })
+  const request = await environment.wallet('wallet').requests.next('personal_sign')
+
+  events.emit('session_delete', { topic: 'session-topic' })
+
+  expect(request.status).toBe('cancelled')
+  await expect(request.approve()).rejects.toMatchObject({
+    code: 'OALLET_ENVIRONMENT_REQUEST_EXPIRED',
+  })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(respondSessionRequest).not.toHaveBeenCalled()
+})
+
+test('forwards wallet chain changes to the matching WalletConnect session', async () => {
+  const { client, emitSessionEvent, environment, events } = setup()
+  const proposalPromise = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit(
+    'session_proposal',
+    proposal({ optionalChain: 'eip155:31337', optionalEvents: ['chainChanged'] }),
+  )
+  await (await proposalPromise).approve()
+
+  events.emit('session_request', {
+    id: 43,
+    params: {
+      chainId: 'eip155:1',
+      request: {
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x7a69' }],
+      },
+    },
+    topic: 'session-topic',
+    verifyContext: {},
+  })
+  const request = await environment
+    .wallet('wallet')
+    .requests.next('wallet_switchEthereumChain')
+  expect(request.chainId).toBe('eip155:1')
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: request.origin,
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x1')
+  await request.approve()
+
+  await expect(
+    environment.dispatch({
+      method: 'eth_chainId',
+      origin: request.origin,
+      walletId: 'wallet',
+    }),
+  ).resolves.toBe('0x7a69')
+
+  await vi.waitFor(() => {
+    expect(emitSessionEvent).toHaveBeenCalledWith({
+      chainId: 'eip155:31337',
+      event: { data: '0x7a69', name: 'chainChanged' },
+      topic: 'session-topic',
+    })
+  })
+})
+
+function proposal(
+  options: {
+    id?: number
+    optionalChain?: string
+    optionalEvents?: string[]
+    optionalMethods?: string[]
+    pairingTopic?: string
+  } = {},
+) {
   const id = options.id ?? 1
   return {
     id,
@@ -164,9 +379,12 @@ function proposal(options: { id?: number; pairingTopic?: string } = {}) {
       id,
       optionalNamespaces: {
         eip155: {
-          chains: ['eip155:1', 'eip155:10'],
-          events: ['accountsChanged', 'unsupportedEvent'],
-          methods: ['eth_sendTransaction', 'unsupported_method'],
+          chains: ['eip155:1', options.optionalChain ?? 'eip155:10'],
+          events: options.optionalEvents ?? ['accountsChanged', 'unsupportedEvent'],
+          methods: options.optionalMethods ?? [
+            'eth_sendTransaction',
+            'unsupported_method',
+          ],
         },
       },
       pairingTopic: options.pairingTopic ?? 'pairing',
@@ -271,6 +489,24 @@ test('session disconnect and client dispose are idempotent', async () => {
   expect(() =>
     client.pair({ uri: 'wc:again@2?relay-protocol=irn&symKey=secret' }),
   ).toThrowError(expect.objectContaining({ code: 'OALLET_WC_CLIENT_DISPOSED' }))
+})
+
+test('disconnects an approved peer session when wallet connection fails', async () => {
+  const { approveConnection, client, events, peer } = setup()
+  approveConnection.mockRejectedValueOnce(new Error('wallet connection failed'))
+  const pairing = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit('session_proposal', proposal())
+
+  await expect((await pairing).approve()).rejects.toThrow('wallet connection failed')
+  expect(peer.disconnectSession).toHaveBeenCalledWith({
+    reason: expect.objectContaining({ code: 6000 }),
+    topic: 'session-topic',
+  })
+
+  await client.dispose()
+  expect(peer.disconnectSession).toHaveBeenCalledTimes(1)
 })
 
 test('records stable WalletConnect events without raw topics or URIs', async () => {

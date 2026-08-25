@@ -22,7 +22,10 @@ type CoreInstance = InstanceType<typeof Core>
 type SessionStruct = Awaited<ReturnType<WalletKitInstance['approveSession']>>
 type SessionRequest = WalletKitTypes.SessionRequest
 type EnvironmentPort = Pick<Environment.Instance, 'dispatch'> & {
-  readonly [Environment.controller]: Pick<Environment.Controller, 'traceWalletConnect'>
+  readonly [Environment.controller]: Pick<
+    Environment.Controller,
+    'subscribe' | 'traceWalletConnect'
+  >
   wallet(
     id: string,
   ): Pick<ReturnType<Environment.Instance['wallet']>, 'autoApprove' | 'profile'>
@@ -32,6 +35,7 @@ export type Peer = Pick<
   WalletKitInstance,
   | 'approveSession'
   | 'disconnectSession'
+  | 'emitSessionEvent'
   | 'off'
   | 'on'
   | 'pair'
@@ -59,10 +63,12 @@ type ProposalState = {
 }
 
 type SessionState = {
+  chainId?: string | undefined
   connected: boolean
   readonly connectionId: string
   disconnecting?: Promise<void> | undefined
   disconnected: boolean
+  readonly requests: AbortController
   readonly session: SessionStruct
 }
 
@@ -166,12 +172,13 @@ function createWithResource(options: create.Options, resource: Resource): Instan
   let resetting = false
 
   const onSessionRequest = (event: SessionRequest) => {
-    void routeSessionRequest(event)
+    void track(routeSessionRequest(event))
   }
   const onSessionDelete = (event: { topic: string }) => {
     const state = sessions.get(event.topic)
     if (!state || state.disconnected) return
     state.disconnected = true
+    state.requests.abort()
     sessions.delete(event.topic)
     trace({
       connectionId: state.connectionId,
@@ -182,6 +189,9 @@ function createWithResource(options: create.Options, resource: Resource): Instan
   }
   peer.on('session_request', onSessionRequest)
   peer.on('session_delete', onSessionDelete)
+  const unsubscribeProviderEvents = environment[Environment.controller].subscribe(
+    (event) => track(routeProviderEvent(event)),
+  )
 
   const instance: Instance = {
     [Symbol.asyncDispose]() {
@@ -357,10 +367,23 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       connected: false,
       connectionId: state.connectionId,
       disconnected: false,
+      requests: new AbortController(),
       session,
     }
     sessions.set(session.topic, sessionState)
-    await ensureConnected(sessionState)
+    try {
+      await ensureConnected(sessionState)
+    } catch (connectionError) {
+      try {
+        await disconnectSession(sessionState, 'session')
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [connectionError, cleanupError],
+          'WalletConnect session approval and cleanup failed',
+        )
+      }
+      throw connectionError
+    }
     trace({
       connectionId: state.connectionId,
       type: 'walletconnect.proposal.approved',
@@ -414,6 +437,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
   ) {
     if (state.disconnected) return
     state.disconnected = true
+    state.requests.abort()
     sessions.delete(state.session.topic)
     trace({
       connectionId: state.connectionId,
@@ -503,6 +527,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
 
   async function disposeClient() {
     disposed = true
+    unsubscribeProviderEvents()
     peer.off('session_request', onSessionRequest)
     peer.off('session_delete', onSessionDelete)
     const errors = await cleanup('dispose', true)
@@ -524,12 +549,13 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     }
     try {
       await ensureConnected(state)
-      await selectChain(state, event.params.chainId)
       Json.assert(event.params.request.params)
       const result = await environment.dispatch({
+        chainId: event.params.chainId,
         method: event.params.request.method,
         origin: sessionOrigin(state.connectionId),
         params: event.params.request.params,
+        signal: state.requests.signal,
         walletId,
       })
       await peer.respondSessionRequest({
@@ -537,12 +563,38 @@ function createWithResource(options: create.Options, resource: Resource): Instan
         topic: event.topic,
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      if (state.disconnected || state.requests.signal.aborted) return
       await peer.respondSessionRequest({
-        response: formatJsonRpcError(event.id, { code: 5000, message }),
+        response: formatSessionRequestError(event.id, error),
         topic: event.topic,
       })
     }
+  }
+
+  async function routeProviderEvent(event: Environment.ProviderEvent) {
+    if (disposed || event.walletId !== walletId) return
+    if (event.name !== 'accountsChanged' && event.name !== 'chainChanged') return
+    const state = [...sessions.values()].find(
+      (candidate) => sessionOrigin(candidate.connectionId) === event.origin,
+    )
+    if (!state || state.disconnected) return
+    const namespace = state.session.namespaces.eip155
+    if (!namespace?.events.includes(event.name)) return
+
+    const chainId =
+      event.name === 'chainChanged'
+        ? eip155ChainId(event.data)
+        : (state.chainId ?? namespace.chains?.[0])
+    if (!chainId || !namespace.chains?.includes(chainId)) return
+    state.chainId = chainId
+    await peer.emitSessionEvent({
+      chainId,
+      event: {
+        ...(event.data === undefined ? {} : { data: event.data }),
+        name: event.name,
+      },
+      topic: state.session.topic,
+    })
   }
 
   async function ensureConnected(state: SessionState) {
@@ -551,31 +603,20 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       await environment.dispatch({
         method: 'eth_requestAccounts',
         origin: sessionOrigin(state.connectionId),
+        signal: state.requests.signal,
         walletId,
       })
       state.connected = true
     })
   }
+}
 
-  async function selectChain(state: SessionState, caipChainId: string) {
-    const match = /^eip155:(\d+)$/.exec(caipChainId)
-    if (!match) return
-    const chainId = Number(match[1])
-    const origin = sessionOrigin(state.connectionId)
-    const activeChain = await environment.dispatch<string>({
-      method: 'eth_chainId',
-      origin,
-      walletId,
-    })
-    if (Number(BigInt(activeChain)) === chainId) return
-    await wallet.autoApprove(() =>
-      environment.dispatch({
-        method: 'wallet_switchEthereumChain',
-        origin,
-        params: [{ chainId: `0x${chainId.toString(16)}` }],
-        walletId,
-      }),
-    )
+function eip155ChainId(value: Json.Value | undefined): string | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined
+  try {
+    return `eip155:${Number(BigInt(value))}`
+  } catch {
+    return undefined
   }
 }
 
@@ -635,6 +676,32 @@ function pairingTopic(uri: string) {
 
 function sessionOrigin(connectionId: string) {
   return `walletconnect://${connectionId}`
+}
+
+function formatSessionRequestError(
+  id: number,
+  error: unknown,
+): ReturnType<typeof formatJsonRpcError> {
+  const candidate =
+    error && typeof error === 'object'
+      ? (error as { code?: unknown; data?: unknown; providerCode?: unknown })
+      : undefined
+  const code =
+    typeof candidate?.providerCode === 'number'
+      ? candidate.providerCode
+      : typeof candidate?.code === 'number'
+        ? candidate.code
+        : 5000
+  return {
+    error: {
+      code,
+      ...(Json.isValue(candidate?.data) ? { data: candidate.data } : {}),
+      message: error instanceof Error ? error.message : String(error),
+    },
+    id,
+    jsonrpc: '2.0',
+    // WalletConnect narrows error data to string, while JSON-RPC and Oallet allow JSON.
+  } as ReturnType<typeof formatJsonRpcError>
 }
 
 function isObject(value: unknown): value is Record<string, Json.Value> {

@@ -240,6 +240,7 @@ export function create<const Adapters extends readonly Wallet.Adapter[]>(
       const requestId = input.requestId ?? crypto.randomUUID()
       if (input.signal?.aborted) throw input.signal.reason
       journal.record({
+        ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
         method: input.method,
         origin: input.origin,
         ...(input.params === undefined ? {} : { params: input.params }),
@@ -467,6 +468,7 @@ function settleInteractive(
       state.pending.delete(handle)
     }
     const handle: MutableRequest = {
+      ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
       data: preparation.data,
       id: requestId,
       method: input.method,
@@ -546,6 +548,7 @@ function settleInteractive(
 
 function requestFields(input: DispatchInput, requestId: string) {
   return {
+    ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
     method: input.method,
     origin: input.origin,
     ...(input.providerSessionId === undefined
