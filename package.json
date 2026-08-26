@@ -2,6 +2,7 @@
   "name": "oallet-workspace",
   "private": true,
   "type": "module",
+  "license": "MIT",
   "packageManager": "pnpm@10.34.4",
   "repository": {
     "type": "git",
