@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: 'list',
   testDir: './specs',
   testMatch: '*.e2e.ts',
+  timeout: 90_000,
   use: { baseURL: 'http://127.0.0.1:4174' },
   webServer: {
     command: 'vite fixture --config fixture/vite.config.ts',

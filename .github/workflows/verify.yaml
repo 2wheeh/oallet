@@ -1,11 +1,8 @@
 name: Verify
 
-# main is excluded because release.yaml calls this workflow.
 on:
   workflow_call:
   pull_request:
-  push:
-    branches-ignore: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
