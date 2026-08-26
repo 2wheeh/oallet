@@ -239,6 +239,18 @@ async function readHex(locator: Locator, byteSize: number): Promise<Hex> {
 }
 
 async function scanQr(locator: Locator) {
+  await expect
+    .poll(
+      () =>
+        locator.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement &&
+            element.complete &&
+            element.naturalWidth > 0,
+        ),
+      { timeout: 15_000 },
+    )
+    .toBe(true)
   let uri: string | undefined
   await expect(async () => {
     uri = await Qr.scan(locator)

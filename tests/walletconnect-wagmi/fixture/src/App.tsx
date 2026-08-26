@@ -67,7 +67,9 @@ export function App() {
         <img
           alt="WalletConnect pairing QR code"
           data-testid="walletconnect-qr"
+          height={320}
           src={qrSource}
+          width={320}
         />
       ) : null}
       <label>
