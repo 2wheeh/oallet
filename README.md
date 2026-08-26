@@ -34,6 +34,21 @@ Direct `@oallet/*` package imports expose the same namespace-based API.
 installs do not pull in the Reown dependency graph. Install it explicitly when using
 `oallet/walletconnect`.
 
+When several Oallet packages are used together, package namespace imports keep generic
+module names such as `Client`, `Profile`, and `Wallet` attributable at the call site:
+
+```ts
+import * as Core from '@oallet/core'
+import * as Evm from '@oallet/evm'
+import * as OalletPlaywright from '@oallet/playwright'
+import * as WalletConnect from '@oallet/walletconnect'
+
+const profile = Evm.Profile.eoa({ /* ... */ })
+const environment = Core.Environment.create({ /* ... */ })
+const test = OalletPlaywright.Fixture.extend(base, { /* ... */ })
+await using client = await WalletConnect.Client.create({ /* ... */ })
+```
+
 ## EVM and Playwright
 
 ```ts
@@ -69,24 +84,42 @@ export const test = Fixture.extend(base, {
 
 Set `rdns` to the wallet family's EIP-6963 reverse-domain identifier when tests need
 to model the same wallet across multiple namespaces. Omit it to use the deterministic
-`dev.oallet.<profile-id>` fallback.
+`dev.oallet.<profile-id>` fallback. This reproduces discovery identity metadata, not
+vendor-specific wallet behavior or UI.
 
-Interactive requests are manual by default:
+Interactive requests are manual by default. Use the request queue when the product
+interaction is part of the contract under test: assert the method, parameters, or
+normalized approval data before deciding the request.
 
 ```ts
 const result = page.getByRole('button', { name: 'Connect' }).click()
 const request = await oallet
   .wallet('test-wallet')
   .requests.next('eth_requestAccounts')
+expect(request.data).toEqual({
+  accounts: [Identity.alice.address, Identity.bob.address],
+  chainId: anvil.id,
+  type: 'connect',
+})
 await request.approve()
 await result
 ```
 
-Use a bounded auto-approval scope when the interaction itself is not under test:
+Use a bounded auto-approval scope only when the interaction is setup for the behavior
+under test:
 
 ```ts
 await oallet.wallet('test-wallet').autoApprove(async () => {
   await page.getByRole('button', { name: 'Connect' }).click()
+})
+```
+
+Oallet does not impose a manual request timeout. Let the test own that policy with an
+`AbortSignal`, including the platform timeout helper when a fixed bound is useful:
+
+```ts
+const request = await oallet.wallet('test-wallet').requests.next('personal_sign', {
+  signal: AbortSignal.timeout(5_000),
 })
 ```
 
