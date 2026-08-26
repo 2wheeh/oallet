@@ -8,6 +8,7 @@ test('exports the public EVM namespaces', () => {
     'Errors',
     'Identity',
     'Profile',
+    'Transport',
     'Wallet',
   ])
 })

@@ -54,3 +54,8 @@ export class ProviderDisconnectedError extends Errors.BaseError {
   override name = 'Evm.ProviderDisconnectedError'
   readonly providerCode = 4900
 }
+
+export class RpcUnavailableError extends Errors.BaseError {
+  override readonly code = 'OALLET_EVM_RPC_UNAVAILABLE'
+  override name = 'Evm.RpcUnavailableError'
+}
