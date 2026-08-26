@@ -29,7 +29,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test:unit": "vitest run",
+    "test:e2e": "vitest run src/wallet/onchain.test.ts",
+    "test:unit": "vitest run --exclude src/wallet/onchain.test.ts",
     "test:build": "publint --strict && attw --pack . --profile esm-only",
     "typecheck": "tsc --noEmit"
   },
