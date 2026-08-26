@@ -13,6 +13,7 @@ export type Definition<
   readonly id: string
   readonly kind: Kind
   readonly name: string
+  readonly rdns?: string | undefined
 }
 
 export type Input<
@@ -31,6 +32,7 @@ const inputSchema = v.strictObject({
   id: v.pipe(v.string(), v.trim(), v.minLength(1)),
   kind: v.pipe(v.string(), v.trim(), v.minLength(1)),
   name: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  rdns: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
 })
 
 export function define<const Data extends Json.Value, const Kind extends string>(
@@ -49,6 +51,7 @@ export function define<const Data extends Json.Value, const Kind extends string>
     id: result.output.id,
     kind: result.output.kind,
     name: result.output.name,
+    ...(result.output.rdns === undefined ? {} : { rdns: result.output.rdns }),
   }
   const profile = {
     ...normalized,

@@ -11,6 +11,7 @@ test('announces a provider when the initial document lacks crypto.randomUUID', a
     id: 'wallet',
     kind: 'eip155:eoa',
     name: 'Oallet Test Wallet',
+    rdns: 'app.example.wallet',
   })
   const adapter: Wallet.Adapter = {
     profile,
@@ -66,6 +67,7 @@ test('announces an EIP-6963 provider before app code and bridges requests to the
     id: 'wallet',
     kind: 'eip155:eoa',
     name: 'Oallet Test Wallet',
+    rdns: 'app.example.wallet',
   })
   const adapter: Wallet.Adapter = {
     profile,
@@ -99,7 +101,7 @@ test('announces an EIP-6963 provider before app code and bridges requests to the
     await page.goto('https://app.example/')
     const result = page.evaluate(async () => {
       const detail = await new Promise<{
-        info: { name: string }
+        info: { name: string; rdns: string }
         provider: { request(input: { method: string }): Promise<unknown> }
       }>((resolve) => {
         window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) => {
@@ -111,6 +113,7 @@ test('announces an EIP-6963 provider before app code and bridges requests to the
       return {
         accounts: await detail.provider.request({ method: 'eth_requestAccounts' }),
         name: detail.info.name,
+        rdns: detail.info.rdns,
       }
     })
     const request = await environment
@@ -121,6 +124,7 @@ test('announces an EIP-6963 provider before app code and bridges requests to the
     await expect(result).resolves.toEqual({
       accounts: ['0x0000000000000000000000000000000000000001'],
       name: 'Oallet Test Wallet',
+      rdns: 'app.example.wallet',
     })
     expect(origins).toEqual(['https://app.example'])
 
@@ -173,6 +177,69 @@ test('announces an EIP-6963 provider before app code and bridges requests to the
       Environment.RequestExpiredError,
     )
     await expect(abandoned).resolves.toBeInstanceOf(Error)
+  } finally {
+    await context.close()
+    await browser.close()
+  }
+}, 30_000)
+
+test('keeps the provider session active across same-document history navigation', async () => {
+  const profile = Profile.define({
+    data: {},
+    id: 'wallet',
+    kind: 'eip155:eoa',
+    name: 'Oallet Test Wallet',
+  })
+  const adapter: Wallet.Adapter = {
+    profile,
+    prepare(input) {
+      if (input.method === 'eth_chainId') return { type: 'return', value: '0x1' }
+      return { type: 'return', value: null }
+    },
+    reset() {},
+    restore() {},
+    snapshot: () => null,
+    validateSnapshot() {},
+  }
+  const environment = Environment.create({ wallets: [adapter] })
+  const browser = await chromium.launch({ headless: true })
+  const context = await browser.newContext()
+  await context.route('https://app.example/**', (route) =>
+    route.fulfill({
+      body: '<!doctype html><title>Fixture</title>',
+      contentType: 'text/html',
+    }),
+  )
+  await Browser.attach({ context, environment })
+  const page = await context.newPage()
+
+  try {
+    await page.goto('https://app.example/')
+    await page.evaluate(async () => {
+      const detail = await new Promise<{
+        provider: { request(input: { method: string }): Promise<unknown> }
+      }>((resolve) => {
+        window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) => {
+          resolve(event.detail)
+        }) as EventListener)
+        window.dispatchEvent(new Event('eip6963:requestProvider'))
+      })
+      Object.assign(window, { __oalletTestProvider: detail.provider })
+      history.pushState(null, '', '/settings')
+    })
+    await page.waitForURL('https://app.example/settings')
+
+    await expect(
+      page.evaluate(() =>
+        (
+          window as typeof window & {
+            __oalletTestProvider: {
+              request(input: { method: string }): Promise<unknown>
+            }
+          }
+        ).__oalletTestProvider.request({ method: 'eth_chainId' }),
+      ),
+    ).resolves.toBe('0x1')
   } finally {
     await context.close()
     await browser.close()

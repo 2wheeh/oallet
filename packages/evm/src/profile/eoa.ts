@@ -40,6 +40,7 @@ export function eoa(options: eoa.Options): Definition {
     id: options.id,
     kind: 'eip155:eoa',
     name: options.name,
+    ...(options.rdns === undefined ? {} : { rdns: options.rdns }),
   })
 }
 
@@ -51,6 +52,7 @@ export declare namespace eoa {
     readonly icon?: string | undefined
     readonly id: string
     readonly name: string
+    readonly rdns?: string | undefined
   }
   type ReturnType = Definition
 }

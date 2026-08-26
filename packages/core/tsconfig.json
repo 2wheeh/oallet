@@ -1,4 +1,7 @@
 {
   "extends": "@oallet/config/tsconfig/library.json",
+  "compilerOptions": {
+    "resolveJsonModule": true
+  },
   "include": ["src", "tsdown.config.ts", "vitest.config.ts"]
 }

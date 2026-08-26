@@ -9,6 +9,7 @@ test('defines a serializable EOA profile from Anvil identity presets', () => {
     chains: [1, 31337],
     id: 'browser-wallet',
     name: 'Browser Wallet',
+    rdns: 'app.example.wallet',
   })
 
   expect(profile.kind).toBe('eip155:eoa')
@@ -17,6 +18,7 @@ test('defines a serializable EOA profile from Anvil identity presets', () => {
     chains: [1, 31337],
     defaultChainId: 1,
   })
+  expect(profile.rdns).toBe('app.example.wallet')
   expect(JSON.stringify(profile)).not.toContain('test test')
 })
 

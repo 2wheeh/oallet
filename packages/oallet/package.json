@@ -62,8 +62,15 @@
   "dependencies": {
     "@oallet/core": "workspace:^",
     "@oallet/evm": "workspace:^",
-    "@oallet/playwright": "workspace:^",
+    "@oallet/playwright": "workspace:^"
+  },
+  "peerDependencies": {
     "@oallet/walletconnect": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@oallet/walletconnect": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

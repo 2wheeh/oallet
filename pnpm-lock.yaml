@@ -197,9 +197,6 @@ importers:
       '@oallet/playwright':
         specifier: workspace:^
         version: link:../playwright
-      '@oallet/walletconnect':
-        specifier: workspace:^
-        version: link:../walletconnect
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 'catalog:'

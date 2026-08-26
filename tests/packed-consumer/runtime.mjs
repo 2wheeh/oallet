@@ -39,4 +39,8 @@ const chainId = await environment.dispatch({
   walletId: profile.id,
 })
 if (chainId !== '0x7a69') throw new Error(`Unexpected chain: ${chainId}`)
+const snapshot = await environment.snapshot()
+if (snapshot.producedBy !== '0.1.0') {
+  throw new Error(`Unexpected snapshot producer: ${snapshot.producedBy}`)
+}
 await environment.dispose()

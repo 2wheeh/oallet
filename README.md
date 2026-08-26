@@ -30,6 +30,9 @@ import { Client } from 'oallet/walletconnect'
 ```
 
 Direct `@oallet/*` package imports expose the same namespace-based API.
+`@oallet/walletconnect` is an optional peer of the umbrella package so EVM-only
+installs do not pull in the Reown dependency graph. Install it explicitly when using
+`oallet/walletconnect`.
 
 ## EVM and Playwright
 
@@ -46,6 +49,7 @@ const profile = Profile.eoa({
   chains: [anvil.id],
   id: 'test-wallet',
   name: 'Oallet',
+  rdns: 'dev.oallet.test-wallet',
 })
 
 export const test = Fixture.extend(base, {
@@ -62,6 +66,10 @@ export const test = Fixture.extend(base, {
     }),
 })
 ```
+
+Set `rdns` to the wallet family's EIP-6963 reverse-domain identifier when tests need
+to model the same wallet across multiple namespaces. Omit it to use the deterministic
+`dev.oallet.<profile-id>` fallback.
 
 Interactive requests are manual by default:
 

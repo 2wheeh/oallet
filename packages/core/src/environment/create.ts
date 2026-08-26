@@ -1,3 +1,4 @@
+import pkg from '../../package.json' with { type: 'json' }
 import * as Json from '../json/json.js'
 import type * as Request from '../request/request.js'
 import type * as Trace from '../trace/trace.js'
@@ -392,7 +393,7 @@ export function create<const Adapters extends readonly Wallet.Adapter[]>(
         profiles[id] = fingerprint(state.adapter.profile)
       }
       const snapshot = Json.freeze({
-        producedBy: '0.0.0',
+        producedBy: pkg.version,
         profiles,
         schemaVersion: 1 as const,
         wallets: snapshots,

@@ -173,6 +173,7 @@ test('snapshots, restores, and resets adapter state explicitly', async () => {
     })
   })
   const snapshot = await environment.snapshot()
+  expect(snapshot.producedBy).toBe('0.1.0')
   await wallet.autoApprove(async () => {
     await environment.dispatch({
       method: 'write',

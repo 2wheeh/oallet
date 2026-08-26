@@ -17,6 +17,7 @@ type BrowserProfile = {
   readonly id: string
   readonly kind: string
   readonly name: string
+  readonly rdns?: string | undefined
 }
 
 type ProviderSession = {
@@ -94,9 +95,6 @@ export async function attach(options: attach.Options): Promise<Handle> {
   }
   const observePage = (page: Page) => {
     page.on('close', () => endFrame(page.mainFrame()))
-    page.on('framenavigated', (frame) => {
-      if (frame === page.mainFrame()) endFrame(frame)
-    })
   }
   context.on('page', observePage)
   let unsubscribe: () => void = () => undefined
@@ -249,11 +247,12 @@ export async function attach(options: attach.Options): Promise<Handle> {
       )
     })
     const profiles: BrowserProfile[] = environment.profiles.map(
-      ({ icon, id, kind, name }) => ({
+      ({ icon, id, kind, name, rdns }) => ({
         ...(icon === undefined ? {} : { icon }),
         id,
         kind,
         name,
+        ...(rdns === undefined ? {} : { rdns }),
       }),
     )
     await context.addInitScript(browserBootstrap, profiles)
@@ -467,7 +466,9 @@ function browserBootstrap(profiles: readonly BrowserProfile[]) {
       info: Object.freeze({
         icon: profile.icon ?? fallbackIcon,
         name: profile.name,
-        rdns: `dev.oallet.${profile.id.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
+        rdns:
+          profile.rdns ??
+          `dev.oallet.${profile.id.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
         uuid: providerSessionId,
       }),
       provider,
