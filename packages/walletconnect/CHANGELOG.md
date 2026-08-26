@@ -1,5 +1,14 @@
 # @oallet/walletconnect
 
+## 0.2.1
+
+### Patch Changes
+
+- [#5](https://github.com/2wheeh/oallet/pull/5) [`178c54e`](https://github.com/2wheeh/oallet/commit/178c54ebd893efcb1083f33f1a0b56a60646dcf2) Thanks [@2wheeh](https://github.com/2wheeh)! - Avoid publishing the initial account connection before the WalletConnect session is
+  ready, preventing approval from hanging on the relay.
+- Updated dependencies []:
+  - @oallet/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
