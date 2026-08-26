@@ -12,17 +12,21 @@
     "node": ">=22.11"
   },
   "scripts": {
-    "build": "pnpm --filter './packages/**' --if-present build",
+    "build": "pnpm -r --if-present build",
     "changeset": "changeset",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:pack && pnpm test:build",
+    "check": "pnpm lint && pnpm typecheck",
     "format": "biome format --write .",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "release": "pnpm build && changeset publish",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm test:unit && pnpm test:e2e",
     "test:pack": "node scripts/test-packed-consumer.mjs",
-    "test:build": "pnpm --filter './packages/**' --if-present test:build",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "test:build": "pnpm -r --if-present test:build",
+    "test:e2e": "pnpm build && pnpm -r --if-present test:e2e",
+    "test:package": "pnpm build && pnpm test:pack && pnpm test:build",
+    "test:unit": "pnpm -r --if-present test:unit",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "verify": "pnpm check && pnpm test:unit && pnpm test:e2e && pnpm test:package"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

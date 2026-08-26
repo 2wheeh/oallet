@@ -12,8 +12,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: Check
+  static:
+    name: Static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm check
+
+  unit:
+    name: Unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - run: pnpm test:unit
+
+  e2e:
+    name: E2E
     runs-on: ubuntu-latest
     env:
       VITE_WC_PROJECT_ID: ${{ secrets.VITE_WC_PROJECT_ID }}
@@ -37,4 +76,21 @@ jobs:
       - name: Install Chromium
         run: pnpm --filter @oallet/test-wagmi exec playwright install --with-deps chromium
 
-      - run: pnpm check
+      - run: pnpm test:e2e
+
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm test:package
