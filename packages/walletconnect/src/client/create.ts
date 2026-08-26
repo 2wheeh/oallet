@@ -577,7 +577,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     const state = [...sessions.values()].find(
       (candidate) => sessionOrigin(candidate.connectionId) === event.origin,
     )
-    if (!state || state.disconnected) return
+    if (!state?.connected || state.disconnected) return
     const namespace = state.session.namespaces.eip155
     if (!namespace?.events.includes(event.name)) return
 
