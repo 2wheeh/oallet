@@ -7,7 +7,7 @@ import { create, createWithPeer, type Peer } from './create.js'
 function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
   let emitProviderEvent: Wallet.AdapterContext['emit'] = async () => undefined
   let activeChainId = '0x1'
-  const approveConnection = vi.fn(async () => [
+  const approveConnection = vi.fn(async (_origin: string) => [
     '0x0000000000000000000000000000000000000001',
   ])
   const profile = Profile.define({
@@ -29,7 +29,7 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
       if (input.method === 'eth_requestAccounts') {
         return {
           type: 'interactive',
-          approve: approveConnection,
+          approve: () => approveConnection(input.origin),
           data: { type: 'connect' },
         }
       }
@@ -93,6 +93,7 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
     approveConnection,
     approveSession,
     client,
+    emitProviderEvent,
     emitSessionEvent,
     environment,
     events,
@@ -100,6 +101,27 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
     respondSessionRequest,
   }
 }
+
+test('does not publish the initial account connection before the session is ready', async () => {
+  const { approveConnection, client, emitProviderEvent, emitSessionEvent, events } =
+    setup()
+  approveConnection.mockImplementationOnce(async (origin) => {
+    await emitProviderEvent({
+      data: ['0x0000000000000000000000000000000000000001'],
+      name: 'accountsChanged',
+      origin,
+    })
+    return ['0x0000000000000000000000000000000000000001']
+  })
+  emitSessionEvent.mockRejectedValueOnce(new Error('session is not ready'))
+  const pairing = client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  events.emit('session_proposal', proposal())
+
+  await expect((await pairing).approve()).resolves.toBeDefined()
+  expect(emitSessionEvent).not.toHaveBeenCalled()
+})
 
 function approvedSession(namespaces: unknown) {
   return {
