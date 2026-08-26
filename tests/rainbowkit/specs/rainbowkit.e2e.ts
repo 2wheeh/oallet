@@ -52,7 +52,7 @@ test('pairs with RainbowKit WalletConnect 2.21 and decodes its branded QR', asyn
   await page.getByRole('button', { name: /WalletConnect/i }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText(/Scan with your phone/i)
-  const proposal = await walletConnect.pair({ uri: await scanQr(dialog) })
+  const proposal = await walletConnect.pair({ uri: await Qr.scan(dialog) })
   const namespace =
     proposal.requiredNamespaces.eip155 ?? proposal.optionalNamespaces.eip155
   expect(namespace?.methods).toContain('personal_sign')
@@ -72,15 +72,6 @@ test('pairs with RainbowKit WalletConnect 2.21 and decodes its branded QR', asyn
   await session.disconnect()
   await expect(page.getByTestId('status')).toHaveText('disconnected')
 })
-
-async function scanQr(locator: Locator) {
-  let uri: string | undefined
-  await expect(async () => {
-    uri = await Qr.scan(locator)
-  }).toPass({ intervals: [100, 250, 500], timeout: 15_000 })
-  if (!uri) throw new Error('Expected a WalletConnect QR URI')
-  return uri
-}
 
 async function readHex(locator: Locator, byteSize: number): Promise<Hex> {
   await expect(locator).not.toBeEmpty()
