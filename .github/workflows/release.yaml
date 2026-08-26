@@ -40,8 +40,3 @@ jobs:
         with:
           publish-script: pnpm release
           github-token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          # Only needed to bootstrap packages that do not exist on npm yet.
-          # Remove this secret after configuring release.yaml as each package's
-          # trusted publisher; npm will then authenticate through OIDC.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
