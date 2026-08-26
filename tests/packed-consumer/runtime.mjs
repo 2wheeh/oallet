@@ -8,6 +8,7 @@ import { Fixture as BundledFixture } from 'oallet/playwright'
 import { Client as BundledClient } from 'oallet/walletconnect'
 import { custom } from 'viem'
 import { anvil } from 'viem/chains'
+import pkg from './node_modules/@oallet/core/package.json' with { type: 'json' }
 
 if (BundledEnvironment !== Environment) throw new Error('core entrypoints diverged')
 if (BundledProfile !== Profile) throw new Error('EVM entrypoints diverged')
@@ -40,7 +41,7 @@ const chainId = await environment.dispatch({
 })
 if (chainId !== '0x7a69') throw new Error(`Unexpected chain: ${chainId}`)
 const snapshot = await environment.snapshot()
-if (snapshot.producedBy !== '0.1.0') {
+if (snapshot.producedBy !== pkg.version) {
   throw new Error(`Unexpected snapshot producer: ${snapshot.producedBy}`)
 }
 await environment.dispose()
