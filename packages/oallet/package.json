@@ -75,6 +75,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",
     "@oallet/config": "workspace:*",
+    "@oallet/walletconnect": "workspace:*",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:"

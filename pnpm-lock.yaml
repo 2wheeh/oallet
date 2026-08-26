@@ -204,6 +204,9 @@ importers:
       '@oallet/config':
         specifier: workspace:*
         version: link:../config
+      '@oallet/walletconnect':
+        specifier: workspace:*
+        version: link:../walletconnect
       publint:
         specifier: 'catalog:'
         version: 0.3.24
