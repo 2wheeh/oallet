@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import pkg from '../../package.json' with { type: 'json' }
 import * as Profile from '../profile/exports.js'
 import type * as Wallet from '../wallet/exports.js'
 import * as Environment from './exports.js'
@@ -173,7 +174,7 @@ test('snapshots, restores, and resets adapter state explicitly', async () => {
     })
   })
   const snapshot = await environment.snapshot()
-  expect(snapshot.producedBy).toBe('0.1.0')
+  expect(snapshot.producedBy).toBe(pkg.version)
   await wallet.autoApprove(async () => {
     await environment.dispatch({
       method: 'write',
