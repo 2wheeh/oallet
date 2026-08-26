@@ -84,7 +84,7 @@ test('Wagmi pairs, signs, and disconnects through the real relay', async ({
 
   const proposal = await walletConnect.pair({
     timeout: 60_000,
-    uri: await scanQr(qr),
+    uri: await Qr.scan(qr),
   })
   const namespace =
     proposal.requiredNamespaces.eip155 ?? proposal.optionalNamespaces.eip155
@@ -236,25 +236,4 @@ async function readHex(locator: Locator, byteSize: number): Promise<Hex> {
   if (!valid) throw new Error('Expected a hex value')
   expect(size(value)).toBe(byteSize)
   return value
-}
-
-async function scanQr(locator: Locator) {
-  await expect
-    .poll(
-      () =>
-        locator.evaluate(
-          (element) =>
-            element instanceof HTMLImageElement &&
-            element.complete &&
-            element.naturalWidth > 0,
-        ),
-      { timeout: 15_000 },
-    )
-    .toBe(true)
-  let uri: string | undefined
-  await expect(async () => {
-    uri = await Qr.scan(locator)
-  }).toPass({ intervals: [100, 250, 500], timeout: 15_000 })
-  if (!uri) throw new Error('Expected a WalletConnect QR URI')
-  return uri
 }

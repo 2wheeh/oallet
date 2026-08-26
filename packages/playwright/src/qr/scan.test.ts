@@ -6,6 +6,28 @@ import * as Qr from './exports.js'
 
 test('decodes a visible QR screenshot', async () => {
   const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
+  const screenshot = renderQr(value)
+
+  await expect(Qr.scan({ screenshot: async () => screenshot })).resolves.toBe(value)
+})
+
+test('retries while a QR screenshot is not ready to decode', async () => {
+  const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
+  const screenshot = renderQr(value)
+  let attempts = 0
+
+  await expect(
+    Qr.scan({
+      async screenshot() {
+        attempts += 1
+        return attempts === 1 ? Buffer.from('not an image') : screenshot
+      },
+    }),
+  ).resolves.toBe(value)
+  expect(attempts).toBe(2)
+})
+
+function renderQr(value: string) {
   const matrix = encodeQR(value, 'raw', { border: 4 })
   const firstRow = matrix[0]
   if (!firstRow) throw new Error('QR matrix must not be empty')
@@ -26,7 +48,5 @@ test('decodes a visible QR screenshot', async () => {
       image.data[offset + 3] = 255
     }
   }
-  const screenshot = PNG.sync.write(image)
-
-  await expect(Qr.scan({ screenshot: async () => screenshot })).resolves.toBe(value)
-})
+  return PNG.sync.write(image)
+}

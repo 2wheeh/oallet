@@ -51,7 +51,7 @@ test('projects an approved WalletConnect account and signs through DelightKit', 
   await page.getByRole('button', { name: 'Connect WalletConnect' }).click()
   const qr = page.getByTestId('walletconnect-qr')
   await expect(qr).toBeVisible()
-  const proposal = await walletConnect.pair({ uri: await scanQr(qr) })
+  const proposal = await walletConnect.pair({ uri: await Qr.scan(qr) })
   expect(proposal.optionalNamespaces.eip155?.methods).toContain('personal_sign')
   const session = await proposal.approve()
 
@@ -70,15 +70,6 @@ test('projects an approved WalletConnect account and signs through DelightKit', 
   await expect(page.getByTestId('wagmi-status')).toHaveText('disconnected')
   await expect(page.getByTestId('delight-account')).toBeEmpty()
 })
-
-async function scanQr(locator: Locator) {
-  let uri: string | undefined
-  await expect(async () => {
-    uri = await Qr.scan(locator)
-  }).toPass({ intervals: [100, 250, 500], timeout: 15_000 })
-  if (!uri) throw new Error('Expected a WalletConnect QR URI')
-  return uri
-}
 
 async function readHex(locator: Locator, byteSize: number): Promise<Hex> {
   await expect(locator).not.toBeEmpty()

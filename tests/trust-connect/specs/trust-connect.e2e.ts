@@ -52,7 +52,7 @@ test('approves only EVM from Trust Connect multi-namespace proposal', async ({
   await page.getByRole('button', { name: /WalletConnect.*Connect/i }).click()
   const qr = page.getByRole('region', { name: 'WalletConnect QR code' })
   await expect(qr).toBeVisible()
-  const proposal = await walletConnect.pair({ uri: await scanQr(qr) })
+  const proposal = await walletConnect.pair({ uri: await Qr.scan(qr) })
   expect(Object.keys(proposal.requiredNamespaces)).toEqual([])
   expect(Object.keys(proposal.optionalNamespaces).sort()).toEqual([
     'bip122',
@@ -78,15 +78,6 @@ test('approves only EVM from Trust Connect multi-namespace proposal', async ({
   await session.disconnect()
   await expect(page.getByTestId('eip155-status')).toHaveText('disconnected')
 })
-
-async function scanQr(locator: Locator) {
-  let uri: string | undefined
-  await expect(async () => {
-    uri = await Qr.scan(locator)
-  }).toPass({ intervals: [100, 250, 500], timeout: 15_000 })
-  if (!uri) throw new Error('Expected a WalletConnect QR URI')
-  return uri
-}
 
 async function readHex(locator: Locator, byteSize: number): Promise<Hex> {
   await expect(locator).not.toBeEmpty()
