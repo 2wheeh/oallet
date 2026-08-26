@@ -53,7 +53,7 @@ export type Snapshot = {
 
 export type Instance<
   Controls extends object = object,
-  Results extends object = object,
+  Requests extends object = object,
 > = {
   readonly [controller]: Controller
   readonly profiles: readonly Wallet.Adapter['profile'][]
@@ -63,14 +63,14 @@ export type Instance<
   reset(): Promise<void>
   restore(snapshot: Snapshot): Promise<void>
   snapshot(): Promise<Snapshot>
-  wallet(id: string): Wallet.Instance<Controls, Results>
+  wallet(id: string): Wallet.Instance<Controls, Requests>
 }
 
 type AdapterControls<Adapters extends readonly Wallet.Adapter[]> =
   Adapters[number] extends Wallet.Adapter<infer Controls, object> ? Controls : object
 
-type AdapterResults<Adapters extends readonly Wallet.Adapter[]> =
-  Adapters[number] extends Wallet.Adapter<object, infer Results> ? Results : object
+type AdapterRequests<Adapters extends readonly Wallet.Adapter[]> =
+  Adapters[number] extends Wallet.Adapter<object, infer Requests> ? Requests : object
 
 type MutableRequest = Request.Handle & {
   cancel(reason: Trace.RequestCancelled['reason']): void
@@ -159,7 +159,7 @@ class Journal {
 
 export function create<const Adapters extends readonly Wallet.Adapter[]>(
   options: create.Options<Adapters>,
-): Instance<AdapterControls<Adapters>, AdapterResults<Adapters>> {
+): Instance<AdapterControls<Adapters>, AdapterRequests<Adapters>> {
   const wallets = new Map<string, WalletState>()
   const journal = new Journal()
   const listeners = new Set<(event: ProviderEvent) => void | Promise<void>>()
@@ -204,7 +204,7 @@ export function create<const Adapters extends readonly Wallet.Adapter[]>(
     })
   }
 
-  const environment: Instance<AdapterControls<Adapters>, AdapterResults<Adapters>> = {
+  const environment: Instance<AdapterControls<Adapters>, AdapterRequests<Adapters>> = {
     [controller]: {
       delivery(input) {
         assertActive()
@@ -417,7 +417,7 @@ export function create<const Adapters extends readonly Wallet.Adapter[]>(
         },
       }) as unknown as Wallet.Instance<
         AdapterControls<Adapters>,
-        AdapterResults<Adapters>
+        AdapterRequests<Adapters>
       >
     },
   }

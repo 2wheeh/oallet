@@ -1082,7 +1082,6 @@ Oallet은 branded wallet fidelity나 실제 AA execution을 수행하지 않은 
 
 - Browser–Controller channel codec의 exact schema
 - Playwright automatic fixture ordering과 pre-navigation 감지 방식
-- typed request registry와 custom method extension typing
 - trace JSON schema와 Playwright matcher 이름
 - Solana와 Cosmos의 exact derivation path
 - 첫 release package build와 bundling 도구
