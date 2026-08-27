@@ -1,9 +1,9 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Wallet } from '@oallet/evm'
+import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
 import { Fixture, Qr } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
 import { test as base, expect, type Locator } from '@playwright/test'
-import { custom, type Hex, isHex, recoverMessageAddress, size } from 'viem'
+import { type Hex, isHex, recoverMessageAddress, size } from 'viem'
 import { mainnet } from 'viem/chains'
 
 const projectId = process.env.VITE_WC_PROJECT_ID
@@ -21,11 +21,7 @@ const test = Fixture.extend(base, {
           chains: [
             {
               chain: mainnet,
-              transport: custom({
-                request() {
-                  throw new Error('This consumer canary does not use RPC')
-                },
-              }),
+              transport: Transport.unavailable(),
             },
           ],
           profile,

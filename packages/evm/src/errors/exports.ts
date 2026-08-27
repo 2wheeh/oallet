@@ -6,6 +6,7 @@ export {
   InvalidParamsError,
   InvalidProfileError,
   ProviderDisconnectedError,
+  RpcUnavailableError,
   StaleConnectionError,
   UnauthorizedError,
   UnsupportedMethodError,

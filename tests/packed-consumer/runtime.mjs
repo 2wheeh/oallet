@@ -1,17 +1,17 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Wallet } from '@oallet/evm'
+import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
 import { Environment as BundledEnvironment } from 'oallet/core'
-import { Profile as BundledProfile } from 'oallet/evm'
+import { Profile as BundledProfile, Transport as BundledTransport } from 'oallet/evm'
 import { Fixture as BundledFixture } from 'oallet/playwright'
 import { Client as BundledClient } from 'oallet/walletconnect'
-import { custom } from 'viem'
 import { anvil } from 'viem/chains'
 import pkg from './node_modules/@oallet/core/package.json' with { type: 'json' }
 
 if (BundledEnvironment !== Environment) throw new Error('core entrypoints diverged')
 if (BundledProfile !== Profile) throw new Error('EVM entrypoints diverged')
+if (BundledTransport !== Transport) throw new Error('EVM transport entrypoints diverged')
 if (BundledFixture !== Fixture) throw new Error('Playwright entrypoints diverged')
 if (BundledClient !== Client) throw new Error('WalletConnect entrypoints diverged')
 
@@ -27,7 +27,7 @@ const environment = Environment.create({
       chains: [
         {
           chain: anvil,
-          transport: custom({ request: async () => '0x1' }),
+          transport: Transport.unavailable(),
         },
       ],
       profile,
