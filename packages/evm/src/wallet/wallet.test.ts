@@ -1,8 +1,16 @@
 import { Environment } from '@oallet/core'
-import { custom, type Hex, recoverMessageAddress, recoverTypedDataAddress } from 'viem'
+import {
+  type Address,
+  custom,
+  type Hex,
+  type RpcTransactionRequest,
+  recoverMessageAddress,
+  recoverTypedDataAddress,
+} from 'viem'
 import { anvil, mainnet } from 'viem/chains'
-import { expect, test } from 'vitest'
+import { expect, expectTypeOf, test } from 'vitest'
 
+import type * as Connection from '../connection/connection.js'
 import * as Errors from '../errors/exports.js'
 import * as Identity from '../identity/exports.js'
 import * as Profile from '../profile/exports.js'
@@ -51,7 +59,15 @@ test('returns the approved origin connection while the dapp receives accounts', 
   })
 
   const request = await wallet.requests.next('eth_requestAccounts')
+  expectTypeOf(request.method).toEqualTypeOf<'eth_requestAccounts'>()
+  expectTypeOf(request.params).toEqualTypeOf<undefined>()
+  expectTypeOf(request.data).toEqualTypeOf<{
+    readonly accounts: readonly Address[]
+    readonly chainId: number
+    readonly type: 'connect'
+  }>()
   const connection = await request.approve()
+  expectTypeOf(connection).toEqualTypeOf<Connection.Instance>()
 
   expect(connection.origin).toBe('https://one.example')
   expect(wallet.connections.get('https://one.example')).toBe(connection)
@@ -97,7 +113,15 @@ test('signs personal messages only after authorization', async () => {
     params: ['0x68656c6c6f', Identity.alice.address],
     walletId: 'wallet',
   })
-  await (await wallet.requests.next('personal_sign')).approve()
+  const request = await wallet.requests.next('personal_sign')
+  expectTypeOf(request.method).toEqualTypeOf<'personal_sign'>()
+  expectTypeOf(request.params).toEqualTypeOf<readonly [data: string, address: Address]>()
+  expectTypeOf(request.data).toMatchTypeOf<{
+    readonly account: Address
+    readonly type: 'signMessage'
+  }>()
+  expectTypeOf(request.approve()).toEqualTypeOf<Promise<Hex>>()
+  await request.approve()
 
   await expect(
     recoverMessageAddress({
@@ -156,6 +180,9 @@ test('signs valid typed data for an authorized account', async () => {
   })
   const request = await wallet.requests.next('eth_signTypedData_v4')
 
+  expectTypeOf(request.params).toEqualTypeOf<
+    readonly [address: Address, message: string]
+  >()
   expect(request.chainId).toBe('eip155:1')
   await request.approve()
   await expect(
@@ -303,6 +330,10 @@ test('presents a scoped transaction on its request chain', async () => {
   const request = await wallet.requests.next('eth_sendTransaction')
 
   try {
+    expectTypeOf(request.params).toEqualTypeOf<
+      readonly [transaction: RpcTransactionRequest & { readonly from: Address }]
+    >()
+    expectTypeOf(request.approve()).toEqualTypeOf<Promise<Hex>>()
     expect(request.chainId).toBe('eip155:31337')
     expect(request.data).toMatchObject({ chainId: anvil.id })
     await expect(

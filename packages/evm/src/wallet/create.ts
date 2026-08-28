@@ -1,12 +1,18 @@
-import { type Wallet as CoreWallet, Json } from '@oallet/core'
+import {
+  type Request as CoreRequest,
+  type Wallet as CoreWallet,
+  Json,
+} from '@oallet/core'
 import {
   type Address,
   createWalletClient,
+  type Hash,
   type Hex,
   isAddress,
   isAddressEqual,
   isHex,
   numberToHex,
+  type RpcTransactionRequest,
   validateTypedData,
 } from 'viem'
 import type * as Connection from '../connection/connection.js'
@@ -29,11 +35,49 @@ export type Controls = {
   readonly connections: Connection.Collection
 }
 
-export type RequestResults = {
-  readonly eth_requestAccounts: Connection.Instance
+type AccountData = {
+  readonly account: Address
 }
 
-export type Instance = CoreWallet.Adapter<Controls, RequestResults> & {
+export type RequestDefinitions = {
+  readonly eth_requestAccounts: CoreRequest.Definition<
+    undefined,
+    {
+      readonly accounts: readonly Address[]
+      readonly chainId: number
+      readonly type: 'connect'
+    },
+    Connection.Instance
+  >
+  readonly eth_sendTransaction: CoreRequest.Definition<
+    readonly [transaction: RpcTransactionRequest & { readonly from: Address }],
+    AccountData & {
+      readonly chainId: number
+      readonly type: 'sendTransaction'
+    },
+    Hash
+  >
+  readonly eth_signTypedData_v4: CoreRequest.Definition<
+    readonly [address: Address, message: string],
+    AccountData & { readonly type: 'signTypedData' },
+    Hex
+  >
+  readonly personal_sign: CoreRequest.Definition<
+    readonly [data: string, address: Address],
+    AccountData & { readonly type: 'signMessage' },
+    Hex
+  >
+  readonly wallet_switchEthereumChain: CoreRequest.Definition<
+    readonly [chain: { readonly chainId: string }],
+    {
+      readonly chainId: number
+      readonly type: 'switchChain'
+    },
+    null
+  >
+}
+
+export type Instance = CoreWallet.Adapter<Controls, RequestDefinitions> & {
   readonly profile: Profile.Definition
 }
 

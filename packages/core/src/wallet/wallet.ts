@@ -41,10 +41,13 @@ export type AdapterContext = {
   emit(event: ProviderEvent): Promise<void>
 }
 
-export type Adapter<Controls extends object = object, Results extends object = object> = {
+export type Adapter<
+  Controls extends object = object,
+  Requests extends object = object,
+> = {
   readonly controls?: Controls | undefined
   readonly profile: Profile.Definition
-  readonly requestResults?: Results | undefined
+  readonly requestDefinitions?: Requests | undefined
   bind?(context: AdapterContext): void
   dispose?(): void | Promise<void>
   prepare(input: Input): Preparation | Promise<Preparation>
@@ -57,9 +60,9 @@ export type Adapter<Controls extends object = object, Results extends object = o
 
 export type Instance<
   Controls extends object = object,
-  Results extends object = object,
+  Requests extends object = object,
 > = Controls & {
   readonly profile: Profile.Definition
-  readonly requests: Request.Queue<Results>
+  readonly requests: Request.Queue<Requests>
   autoApprove<Result>(callback: () => Result | Promise<Result>): Promise<Result>
 }
