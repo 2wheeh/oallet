@@ -1,5 +1,15 @@
 # oallet
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [[`873c21b`](https://github.com/2wheeh/oallet/commit/873c21b94e830397e64db6af932aaca0a00294ff), [`9b63832`](https://github.com/2wheeh/oallet/commit/9b63832e1f99b2f906e0b89ae62ca966a2d0af7c)]:
+  - @oallet/evm@0.3.0
+  - @oallet/core@0.3.0
+  - @oallet/playwright@0.3.0
+  - @oallet/walletconnect@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

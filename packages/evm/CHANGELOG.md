@@ -1,5 +1,18 @@
 # @oallet/evm
 
+## 0.3.0
+
+### Minor Changes
+
+- [#8](https://github.com/2wheeh/oallet/pull/8) [`9b63832`](https://github.com/2wheeh/oallet/commit/9b63832e1f99b2f906e0b89ae62ca966a2d0af7c) Thanks [@2wheeh](https://github.com/2wheeh)! - Add `Transport.unavailable()` for wallet tests that intentionally have no RPC path and should fail fast on unexpected RPC usage.
+
+### Patch Changes
+
+- [#11](https://github.com/2wheeh/oallet/pull/11) [`873c21b`](https://github.com/2wheeh/oallet/commit/873c21b94e830397e64db6af932aaca0a00294ff) Thanks [@2wheeh](https://github.com/2wheeh)! - Add `Wallet.eoa()` to compose an EOA profile and its viem chain transports in one
+  wallet setup call.
+- Updated dependencies []:
+  - @oallet/core@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
