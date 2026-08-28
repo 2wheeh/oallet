@@ -1,5 +1,12 @@
 # @oallet/walletconnect
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`2bc46ad`](https://github.com/2wheeh/oallet/commit/2bc46ad868829256d91d500f956b64bc5de99880)]:
+  - @oallet/core@0.3.1
+
 ## 0.3.0
 
 ### Patch Changes

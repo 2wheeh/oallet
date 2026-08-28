@@ -1,5 +1,11 @@
 # @oallet/core
 
+## 0.3.1
+
+### Patch Changes
+
+- [#7](https://github.com/2wheeh/oallet/pull/7) [`2bc46ad`](https://github.com/2wheeh/oallet/commit/2bc46ad868829256d91d500f956b64bc5de99880) Thanks [@2wheeh](https://github.com/2wheeh)! - Narrow observed request methods, parameters, approval data, and approval results from adapter-provided request definitions.
+
 ## 0.3.0
 
 ## 0.2.1
