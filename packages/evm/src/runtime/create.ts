@@ -19,14 +19,22 @@ export type Instance = {
   ): Promise<unknown>
 }
 
-export function create(options: create.Options): Instance {
-  const bindings = new Map<number, ChainBinding>()
-  for (const binding of options.chains) {
-    if (bindings.has(binding.chain.id)) {
+export function assertUniqueBindings(chains: readonly ChainBinding[]): void {
+  const chainIds = new Set<number>()
+  for (const binding of chains) {
+    if (chainIds.has(binding.chain.id)) {
       throw new DuplicateChainError(
         `Chain ${binding.chain.id} is configured more than once`,
       )
     }
+    chainIds.add(binding.chain.id)
+  }
+}
+
+export function create(options: create.Options): Instance {
+  assertUniqueBindings(options.chains)
+  const bindings = new Map<number, ChainBinding>()
+  for (const binding of options.chains) {
     bindings.set(binding.chain.id, binding)
   }
   return {
