@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Wallet } from '@oallet/evm'
+import { Identity, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
 import { test as base, expect, type Locator } from '@playwright/test'
 import { Instance, Pool } from 'prool'
@@ -18,12 +18,7 @@ import { anvil, mainnet } from 'viem/chains'
 let lease: Awaited<ReturnType<ReturnType<typeof Pool.create>['acquire']>>
 let pool: ReturnType<typeof Pool.create>
 
-const profile = Profile.eoa({
-  accounts: [Identity.alice, Identity.bob],
-  chains: [anvil.id, mainnet.id],
-  id: 'alice',
-  name: 'Oallet Test Wallet',
-})
+const walletId = 'alice'
 
 const typedData = {
   domain: { chainId: anvil.id, name: 'Oallet fixture', version: '1' },
@@ -36,12 +31,14 @@ const test = Fixture.extend(base, {
   environment: () => {
     return Environment.create({
       wallets: [
-        Wallet.create({
+        Wallet.eoa({
+          accounts: [Identity.alice, Identity.bob],
           chains: [
             { chain: anvil, transport: http(lease.instance.url) },
             { chain: mainnet, transport: http(lease.instance.url) },
           ],
-          profile,
+          id: walletId,
+          name: 'Oallet Test Wallet',
         }),
       ],
     })
@@ -59,7 +56,7 @@ test.afterAll(async () => {
 })
 
 test('Wagmi discovers Oallet and completes a real EOA flow', async ({ oallet, page }) => {
-  await oallet.wallet('alice').autoApprove(async () => {
+  await oallet.wallet(walletId).autoApprove(async () => {
     await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
     await expect(
       page.getByRole('button', { name: 'Connect Oallet Test Wallet' }),
@@ -107,7 +104,7 @@ test('Wagmi discovers Oallet and completes a real EOA flow', async ({ oallet, pa
 test('Wagmi surfaces a native connection rejection', async ({ oallet, page }) => {
   await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
   await page.getByRole('button', { name: 'Connect Oallet Test Wallet' }).click()
-  const request = await oallet.wallet('alice').requests.next('eth_requestAccounts')
+  const request = await oallet.wallet(walletId).requests.next('eth_requestAccounts')
 
   request.reject({ code: 4001, message: 'User rejected connection' })
 
@@ -121,7 +118,7 @@ test('Wagmi surfaces a native connection rejection', async ({ oallet, page }) =>
 test('Wagmi follows account restore, reload, and reset', async ({ oallet, page }) => {
   await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
   await page.getByRole('button', { name: 'Connect Oallet Test Wallet' }).click()
-  const request = await oallet.wallet('alice').requests.next('eth_requestAccounts')
+  const request = await oallet.wallet(walletId).requests.next('eth_requestAccounts')
   const connection = await request.approve()
 
   await expect(page.getByTestId('account')).toHaveText(Identity.alice.address)

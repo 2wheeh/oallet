@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
+import { Identity, Transport, Wallet } from '@oallet/evm'
 import { Fixture, Qr } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
 import { test as base, expect, type Locator } from '@playwright/test'
@@ -7,24 +7,21 @@ import { type Hex, isHex, recoverMessageAddress, size } from 'viem'
 import { mainnet } from 'viem/chains'
 
 const projectId = process.env.VITE_WC_PROJECT_ID
-const profile = Profile.eoa({
-  accounts: [Identity.alice],
-  chains: [mainnet.id],
-  id: 'delightkit-wallet',
-  name: 'Oallet DelightKit Wallet',
-})
+const walletId = 'delightkit-wallet'
 const test = Fixture.extend(base, {
   environment: () =>
     Environment.create({
       wallets: [
-        Wallet.create({
+        Wallet.eoa({
+          accounts: [Identity.alice],
           chains: [
             {
               chain: mainnet,
               transport: Transport.unavailable(),
             },
           ],
-          profile,
+          id: walletId,
+          name: 'Oallet DelightKit Wallet',
         }),
       ],
     }),
@@ -40,7 +37,7 @@ test('projects an approved WalletConnect account and signs through DelightKit', 
   await using walletConnect = await Client.create({
     environment: oallet,
     projectId,
-    walletId: profile.id,
+    walletId,
   })
 
   await page.goto('/')
@@ -55,7 +52,7 @@ test('projects an approved WalletConnect account and signs through DelightKit', 
   await expect(page.getByTestId('delight-account')).toHaveText(Identity.alice.address)
 
   await page.getByRole('button', { name: 'Sign message' }).click()
-  const request = await oallet.wallet(profile.id).requests.next('personal_sign')
+  const request = await oallet.wallet(walletId).requests.next('personal_sign')
   await request.approve()
   const signature = await readHex(page.getByTestId('message-signature'), 65)
   await expect(

@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
+import { Identity, Transport, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
 import * as CoreEntry from 'oallet/core'
@@ -8,24 +8,19 @@ import * as PlaywrightEntry from 'oallet/playwright'
 import * as WalletConnectEntry from 'oallet/walletconnect'
 import { anvil } from 'viem/chains'
 
-const profile = Profile.eoa({
+const wallet = Wallet.eoa({
   accounts: [Identity.alice],
-  chains: [anvil.id],
+  chains: [
+    {
+      chain: anvil,
+      transport: Transport.unavailable(),
+    },
+  ],
   id: 'packed-wallet',
   name: 'Packed Wallet',
 })
 const environment = Environment.create({
-  wallets: [
-    Wallet.create({
-      chains: [
-        {
-          chain: anvil,
-          transport: Transport.unavailable(),
-        },
-      ],
-      profile,
-    }),
-  ],
+  wallets: [wallet],
 })
 
 const publicSurface = {
@@ -34,6 +29,7 @@ const publicSurface = {
   environment,
   evmProfile: EvmEntry.Profile,
   evmTransport: EvmEntry.Transport,
+  evmWallet: EvmEntry.Wallet,
   fixtureExtend: Fixture.extend,
   playwrightFixture: PlaywrightEntry.Fixture,
   walletConnectClient: WalletConnectEntry.Client,

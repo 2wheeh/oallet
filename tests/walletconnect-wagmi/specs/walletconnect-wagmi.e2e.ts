@@ -1,5 +1,5 @@
 import { Environment } from '@oallet/core'
-import { Identity, Profile, Wallet } from '@oallet/evm'
+import { Identity, Wallet } from '@oallet/evm'
 import { Fixture, Qr } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
 import { test as base, expect, type Locator } from '@playwright/test'
@@ -29,23 +29,20 @@ let leases: readonly [
   Awaited<ReturnType<ReturnType<typeof Pool.create>['acquire']>>,
 ]
 
-const profile = Profile.eoa({
-  accounts: [Identity.alice],
-  chains: [anvil.id, secondary.id],
-  id: 'walletconnect-wallet',
-  name: 'Oallet WalletConnect Wallet',
-})
+const walletId = 'walletconnect-wallet'
 
 const test = Fixture.extend(base, {
   environment: () =>
     Environment.create({
       wallets: [
-        Wallet.create({
+        Wallet.eoa({
+          accounts: [Identity.alice],
           chains: [
             { chain: anvil, transport: http(leases[0].instance.url) },
             { chain: secondary, transport: http(leases[1].instance.url) },
           ],
-          profile,
+          id: walletId,
+          name: 'Oallet WalletConnect Wallet',
         }),
       ],
     }),
@@ -74,7 +71,7 @@ test('Wagmi pairs, signs, and disconnects through the real relay', async ({
   await using walletConnect = await Client.create({
     environment: oallet,
     projectId,
-    walletId: profile.id,
+    walletId,
   })
 
   await page.goto('http://127.0.0.1:4174')
@@ -96,7 +93,7 @@ test('Wagmi pairs, signs, and disconnects through the real relay', async ({
 
   await page.getByTestId('message-input').fill('Hello over WalletConnect')
   await page.getByTestId('sign-message').click()
-  const request = await oallet.wallet(profile.id).requests.next('personal_sign')
+  const request = await oallet.wallet(walletId).requests.next('personal_sign')
   await request.approve()
   const signature = await readHex(page.getByTestId('message-signature'), 65)
   await expect(
@@ -117,7 +114,7 @@ test('routes a real relay transaction by request chain and switches only on appr
   await using walletConnect = await Client.create({
     environment: oallet,
     projectId,
-    walletId: profile.id,
+    walletId,
   })
   const dapp = await SignClient.init({
     customStoragePrefix: `oallet-multichain-${crypto.randomUUID()}`,
@@ -173,7 +170,7 @@ test('routes a real relay transaction by request chain and switches only on appr
       topic: dappSession.topic,
     })
     const transactionRequest = await oallet
-      .wallet(profile.id)
+      .wallet(walletId)
       .requests.next('eth_sendTransaction')
 
     expect(transactionRequest.chainId).toBe(`eip155:${secondary.id}`)
@@ -181,7 +178,7 @@ test('routes a real relay transaction by request chain and switches only on appr
       oallet.dispatch({
         method: 'eth_chainId',
         origin: transactionRequest.origin,
-        walletId: profile.id,
+        walletId,
       }),
     ).resolves.toBe('0x7a69')
     await transactionRequest.approve()
@@ -205,7 +202,7 @@ test('routes a real relay transaction by request chain and switches only on appr
       topic: dappSession.topic,
     })
     const switchRequest = await oallet
-      .wallet(profile.id)
+      .wallet(walletId)
       .requests.next('wallet_switchEthereumChain')
     expect(switchRequest.chainId).toBe(`eip155:${anvil.id}`)
     await switchRequest.approve()
@@ -218,7 +215,7 @@ test('routes a real relay transaction by request chain and switches only on appr
       oallet.dispatch({
         method: 'eth_chainId',
         origin: switchRequest.origin,
-        walletId: profile.id,
+        walletId,
       }),
     ).resolves.toBe('0x7a6a')
 

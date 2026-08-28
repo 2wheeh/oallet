@@ -24,7 +24,7 @@ The `oallet` umbrella package re-exports each package through a subpath:
 
 ```ts
 import { Environment } from 'oallet/core'
-import { Identity, Profile, Wallet } from 'oallet/evm'
+import { Identity, Wallet } from 'oallet/evm'
 import { Browser, Fixture, Qr } from 'oallet/playwright'
 import { Client } from 'oallet/walletconnect'
 ```
@@ -43,7 +43,7 @@ import * as Evm from '@oallet/evm'
 import * as OalletPlaywright from '@oallet/playwright'
 import * as WalletConnect from '@oallet/walletconnect'
 
-const profile = Evm.Profile.eoa({ /* ... */ })
+const wallet = Evm.Wallet.eoa({ /* ... */ })
 const environment = Core.Environment.create({ /* ... */ })
 const test = OalletPlaywright.Fixture.extend(base, { /* ... */ })
 await using client = await WalletConnect.Client.create({ /* ... */ })
@@ -54,31 +54,45 @@ await using client = await WalletConnect.Client.create({ /* ... */ })
 ```ts
 import { test as base } from '@playwright/test'
 import { Environment } from 'oallet/core'
-import { Identity, Profile, Wallet } from 'oallet/evm'
+import { Identity, Wallet } from 'oallet/evm'
 import { Fixture } from 'oallet/playwright'
 import { http } from 'viem'
 import { anvil } from 'viem/chains'
-
-const profile = Profile.eoa({
-  accounts: [Identity.alice, Identity.bob],
-  chains: [anvil.id],
-  id: 'test-wallet',
-  name: 'Oallet',
-  rdns: 'dev.oallet.test-wallet',
-})
 
 export const test = Fixture.extend(base, {
   environment: () =>
     Environment.create({
       wallets: [
-        Wallet.create({
+        Wallet.eoa({
+          accounts: [Identity.alice, Identity.bob],
           chains: [
             { chain: anvil, transport: http(process.env.ANVIL_RPC_URL) },
           ],
-          profile,
+          id: 'test-wallet',
+          name: 'Oallet',
+          rdns: 'dev.oallet.test-wallet',
         }),
       ],
     }),
+})
+```
+
+`Wallet.eoa()` is the default EOA setup path. The lower-level primitives remain
+available when a test needs to define or reuse profile data separately from its RPC
+runtime:
+
+```ts
+import { Profile } from 'oallet/evm'
+
+const profile = Profile.eoa({
+  accounts: [Identity.alice],
+  chains: [anvil.id],
+  id: 'test-wallet',
+  name: 'Oallet',
+})
+const wallet = Wallet.create({
+  chains: [{ chain: anvil, transport: http(process.env.ANVIL_RPC_URL) }],
+  profile,
 })
 ```
 
