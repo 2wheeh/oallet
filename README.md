@@ -239,3 +239,8 @@ pnpm check
 The EVM integration suite launches Anvil through `prool`, submits a signed EOA
 transaction, returns the RPC hash, and waits for its receipt through an unmodified
 viem public client.
+
+The Solana ConnectorKit suite starts an isolated Surfnet through the Surfpool SDK,
+funds the deterministic Oallet accounts, signs a System Program transfer through
+Wallet Standard, submits it from the consuming dApp, and verifies the confirmed
+transaction and balance change through Solana JSON-RPC.

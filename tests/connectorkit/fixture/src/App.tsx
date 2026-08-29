@@ -7,8 +7,12 @@ import {
   useWallet,
   useWalletConnectors,
 } from '@solana/connector/react'
-import { PublicKey, Transaction } from '@solana/web3.js'
+import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
 import { useState } from 'react'
+
+const rpcUrl = new URL(location.href).searchParams.get('rpc')
+if (!rpcUrl) throw new Error('The ConnectorKit fixture requires an rpc query parameter')
+const connection = new Connection(rpcUrl, 'confirmed')
 
 const config = getDefaultConfig({
   appName: 'Oallet ConnectorKit fixture',
@@ -32,7 +36,10 @@ function Consumer() {
   const { ready: signerReady, signer } = useTransactionSigner()
   const wallet = useWallet()
   const [messageSignatureLength, setMessageSignatureLength] = useState(0)
-  const [transactionSignatureLength, setTransactionSignatureLength] = useState(0)
+  const [transactionLamports, setTransactionLamports] = useState('1')
+  const [transactionSignature, setTransactionSignature] = useState('')
+  const [transactionStatus, setTransactionStatus] = useState('idle')
+  const [transactionTo, setTransactionTo] = useState('')
   const oallet = connectors.find(
     (connector) => connector.name === 'Oallet ConnectorKit Wallet',
   )
@@ -65,25 +72,50 @@ function Consumer() {
         Sign message
       </button>
       <output data-testid="message-signature">{messageSignatureLength}</output>
+      <input
+        data-testid="transaction-to-input"
+        onChange={(event) => setTransactionTo(event.target.value)}
+        value={transactionTo}
+      />
+      <input
+        data-testid="transaction-lamports-input"
+        onChange={(event) => setTransactionLamports(event.target.value)}
+        value={transactionLamports}
+      />
       <button
-        disabled={!signerReady || !signer || !wallet.account}
+        disabled={!signerReady || !signer || !wallet.account || !transactionTo}
         onClick={async () => {
           if (!signer || !wallet.account) return
+          setTransactionStatus('signing')
+          const latestBlockhash = await connection.getLatestBlockhash('confirmed')
           const transaction = new Transaction({
             feePayer: new PublicKey(wallet.account),
-            recentBlockhash: '11111111111111111111111111111111',
-          })
+            recentBlockhash: latestBlockhash.blockhash,
+          }).add(
+            SystemProgram.transfer({
+              fromPubkey: new PublicKey(wallet.account),
+              lamports: Number(transactionLamports),
+              toPubkey: new PublicKey(transactionTo),
+            }),
+          )
           const signed = await signer.signTransaction(transaction)
           if (!(signed instanceof Transaction)) {
             throw new Error('ConnectorKit returned an unexpected transaction type')
           }
-          setTransactionSignatureLength(signed.signature?.length ?? 0)
+          const signature = await connection.sendRawTransaction(signed.serialize())
+          await connection.confirmTransaction(
+            { signature, ...latestBlockhash },
+            'confirmed',
+          )
+          setTransactionSignature(signature)
+          setTransactionStatus('confirmed')
         }}
         type="button"
       >
-        Sign transaction
+        Send transaction
       </button>
-      <output data-testid="transaction-signature">{transactionSignatureLength}</output>
+      <output data-testid="transaction-signature">{transactionSignature}</output>
+      <output data-testid="transaction-status">{transactionStatus}</output>
       <button
         disabled={!wallet.isConnected || isDisconnecting}
         onClick={() => disconnect()}
