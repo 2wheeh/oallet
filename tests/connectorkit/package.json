@@ -1,5 +1,5 @@
 {
-  "name": "@oallet/test-trust-connect",
+  "name": "@oallet/test-connectorkit",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,23 +8,13 @@
   },
   "dependencies": {
     "@oallet/core": "workspace:*",
-    "@oallet/evm": "workspace:*",
     "@oallet/playwright": "workspace:*",
     "@oallet/solana": "workspace:*",
-    "@oallet/walletconnect": "workspace:*",
     "@playwright/test": "catalog:",
-    "@solana/kit": "catalog:",
-    "@tanstack/react-query": "catalog:",
-    "@trustwallet/connect-bip122-react": "0.0.0",
-    "@trustwallet/connect-core": "0.0.0",
-    "@trustwallet/connect-eip155-react": "0.0.0",
-    "@trustwallet/connect-headless": "0.0.0",
-    "@trustwallet/connect-react": "0.0.0",
-    "@trustwallet/connect-solana-react": "0.0.0",
-    "@trustwallet/connect-walletconnect": "0.0.0",
+    "@solana/connector": "catalog:",
+    "@solana/web3.js": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "viem": "catalog:",
     "vite": "catalog:"
   },
   "devDependencies": {

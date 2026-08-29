@@ -9,6 +9,7 @@ and routes approvals back to the test process.
 - EVM EOA profiles derived from the standard ten-account Anvil mnemonic
 - Real signing and transaction submission through consumer-provided viem transports
 - EIP-6963 injection before application code, without `window.ethereum` or an extension
+- Solana Wallet Standard discovery with real Ed25519 message signing
 - Manual approval queues, wallet-scoped auto approval, reset, snapshot, and restore
 - A real `@reown/walletkit` peer for WalletConnect v2 pairing and session requests
 - Playwright fixtures, failure traces, and visible QR decoding
@@ -26,6 +27,7 @@ The `oallet` umbrella package re-exports each package through a subpath:
 import { Environment } from 'oallet/core'
 import { Identity, Wallet } from 'oallet/evm'
 import { Browser, Fixture, Qr } from 'oallet/playwright'
+import * as Solana from 'oallet/solana'
 import { Client } from 'oallet/walletconnect'
 ```
 
@@ -160,6 +162,33 @@ await connection.reconnect()
 `oallet.trace` is a versioned, read-only artifact containing redacted request,
 connection, provider-delivery, and environment lifecycle events. The Playwright
 fixture attaches JSON and text forms automatically when a test fails.
+
+## Solana and Wallet Standard
+
+Solana keypair wallets use the same `Environment.create({ wallets: [...] })` state
+model as EVM wallets. The Playwright fixture registers them through Wallet Standard,
+so applications discover the wallet without a wallet-specific `window` property.
+
+```ts
+import { Environment } from 'oallet/core'
+import { Identity, Profile, Wallet } from 'oallet/solana'
+
+const profile = Profile.keypair({
+  accounts: [Identity.alice],
+  chains: ['solana:localnet'],
+  id: 'solana-wallet',
+  name: 'Oallet Solana',
+})
+
+const environment = Environment.create({
+  wallets: [Wallet.create({ profile })],
+})
+```
+
+The initial vertical slice implements `standard:connect`, `standard:disconnect`,
+`standard:events`, `solana:signMessage`, and `solana:signTransaction` for legacy and
+version-0 wire transactions. Sending transactions is not advertised because RPC
+execution remains the consuming dApp's responsibility.
 
 ## WalletConnect
 
