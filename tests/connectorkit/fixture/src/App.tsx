@@ -87,28 +87,30 @@ function Consumer() {
         onClick={async () => {
           if (!signer || !wallet.account) return
           setTransactionStatus('signing')
-          const latestBlockhash = await connection.getLatestBlockhash('confirmed')
-          const transaction = new Transaction({
-            feePayer: new PublicKey(wallet.account),
-            recentBlockhash: latestBlockhash.blockhash,
-          }).add(
-            SystemProgram.transfer({
-              fromPubkey: new PublicKey(wallet.account),
-              lamports: Number(transactionLamports),
-              toPubkey: new PublicKey(transactionTo),
-            }),
-          )
-          const signed = await signer.signTransaction(transaction)
-          if (!(signed instanceof Transaction)) {
-            throw new Error('ConnectorKit returned an unexpected transaction type')
+          try {
+            const latestBlockhash = await connection.getLatestBlockhash('confirmed')
+            const transaction = new Transaction({
+              feePayer: new PublicKey(wallet.account),
+              recentBlockhash: latestBlockhash.blockhash,
+            }).add(
+              SystemProgram.transfer({
+                fromPubkey: new PublicKey(wallet.account),
+                lamports: Number(transactionLamports),
+                toPubkey: new PublicKey(transactionTo),
+              }),
+            )
+            const signed = await signer.signTransaction(transaction)
+            if (!(signed instanceof Transaction)) {
+              throw new Error('ConnectorKit returned an unexpected transaction type')
+            }
+            const signature = await connection.sendRawTransaction(signed.serialize())
+            setTransactionSignature(signature)
+            setTransactionStatus('submitted')
+          } catch (error) {
+            setTransactionStatus(
+              `error: ${error instanceof Error ? error.message : String(error)}`,
+            )
           }
-          const signature = await connection.sendRawTransaction(signed.serialize())
-          await connection.confirmTransaction(
-            { signature, ...latestBlockhash },
-            'confirmed',
-          )
-          setTransactionSignature(signature)
-          setTransactionStatus('confirmed')
         }}
         type="button"
       >

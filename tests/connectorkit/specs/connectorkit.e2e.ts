@@ -51,23 +51,33 @@ test('discovers and connects Oallet through ConnectorKit', async ({ oallet, page
   await (
     await oallet.wallet(profile.id).requests.next('solana:signTransaction')
   ).approve()
-  await expect(page.getByTestId('transaction-status')).toHaveText('confirmed')
+  await expect(page.getByTestId('transaction-status')).toHaveText('submitted', {
+    timeout: 15_000,
+  })
   const signature = await page.getByTestId('transaction-signature').textContent()
   expect(signature).toMatch(/^[1-9A-HJ-NP-Za-km-z]{87,88}$/)
   if (!signature) throw new Error('Expected a transaction signature')
-  const transaction = await rpc<{ readonly meta: { readonly err: unknown } }>(
-    'getTransaction',
-    [
-      signature,
-      {
-        commitment: 'confirmed',
-        encoding: 'json',
-        maxSupportedTransactionVersion: 0,
+  await expect
+    .poll(
+      async () => {
+        const transaction = await rpc<{
+          readonly meta: { readonly err: unknown }
+        } | null>('getTransaction', [
+          signature,
+          {
+            commitment: 'confirmed',
+            encoding: 'json',
+            maxSupportedTransactionVersion: 0,
+          },
+        ])
+        return transaction ? transaction.meta.err : 'pending'
       },
-    ],
-  )
-  expect(transaction.meta.err).toBeNull()
-  await expect.poll(() => getBalance(Identity.bob.address)).toBe(balanceBefore + 1)
+      { timeout: 15_000 },
+    )
+    .toBeNull()
+  await expect
+    .poll(() => getBalance(Identity.bob.address), { timeout: 15_000 })
+    .toBe(balanceBefore + 1)
 
   await page.getByRole('button', { name: 'Disconnect Oallet', exact: true }).click()
   await expect(page.getByTestId('wallet-status')).toHaveText('disconnected')
