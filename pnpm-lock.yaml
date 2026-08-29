@@ -33,6 +33,9 @@ catalogs:
     '@solana/kit':
       specifier: ^8.3.0
       version: 8.3.0
+    '@solana/surfpool':
+      specifier: 1.6.0
+      version: 1.6.0
     '@solana/transaction-confirmation':
       specifier: ^8.3.0
       version: 8.3.0
@@ -385,6 +388,9 @@ importers:
       '@solana/kit':
         specifier: 'catalog:'
         version: 8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@solana/surfpool':
+        specifier: 'catalog:'
+        version: 1.6.0(@solana/kit@8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10))
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.18
@@ -569,7 +575,7 @@ importers:
         version: 1.62.1
       '@solana/kit':
         specifier: 'catalog:'
-        version: 8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)
+        version: 8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.1(react@19.2.8)
@@ -581,19 +587,19 @@ importers:
         version: 0.0.0
       '@trustwallet/connect-eip155-react':
         specifier: 0.0.0
-        version: 0.0.0(@tanstack/react-query@5.102.1(react@19.2.8))(@trustwallet/connect-headless@0.0.0(react@19.2.8))(react@19.2.8)(viem@2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))
+        version: 0.0.0(@tanstack/react-query@5.102.1(react@19.2.8))(@trustwallet/connect-headless@0.0.0(react@19.2.8))(react@19.2.8)(viem@2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))
       '@trustwallet/connect-headless':
         specifier: 0.0.0
         version: 0.0.0(react@19.2.8)
       '@trustwallet/connect-react':
         specifier: 0.0.0
-        version: 0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
+        version: 0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
       '@trustwallet/connect-solana-react':
         specifier: 0.0.0
         version: 0.0.0(@tanstack/react-query@5.102.1(react@19.2.8))(@trustwallet/connect-headless@0.0.0(react@19.2.8))(react@19.2.8)
       '@trustwallet/connect-walletconnect':
         specifier: 0.0.0
-        version: 0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+        version: 0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -602,7 +608,7 @@ importers:
         version: 19.2.8(react@19.2.8)
       viem:
         specifier: 'catalog:'
-        version: 2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+        version: 2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
       vite:
         specifier: 'catalog:'
         version: 8.2.2(@types/node@26.2.0)(yaml@2.9.0)
@@ -2721,6 +2727,40 @@ packages:
       typescript: '>=5.4.0'
     peerDependenciesMeta:
       typescript:
+        optional: true
+
+  '@solana/surfpool-darwin-arm64@1.6.0':
+    resolution: {integrity: sha512-Co6xm8eM+lQVBU80sFgT7RQQ5a3D5FyJSDjwqzASf4qwb/A5QajcphYTp4xmf70lYVY/sCbrXf6iJF6URhyD9g==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@solana/surfpool-darwin-x64@1.6.0':
+    resolution: {integrity: sha512-Y/t/klvN3Sn2uckJEXbnTp6vxNwkn1Nl8cR9Ah4Ex1lKKXCEydLLU4LwRkAvkXn6ajArZPJ3yWb9QwUn8IQPdA==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@solana/surfpool-linux-x64-gnu@1.6.0':
+    resolution: {integrity: sha512-TqWpupKOLKbazTeEnKaExTU3Yk9+kAfjjwsDnWB7jak8ceO969BaMLcFGqWSaeqIV3TPr+wHYqnNaV1BtStucg==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@solana/surfpool@1.6.0':
+    resolution: {integrity: sha512-d1KNfHv0ujI4Fd0CLRFEfz8Kzb3aQdhS5F4586+Vk++Zeaax+fdrPUoQrI/AORjsUn0mWee508RxNLs7sUk/LA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@solana/kit': ^8.0.0
+      '@solana/kit-plugin-rpc': ^0.18.0
+      '@solana/kit-plugin-signer': ^0.18.0
+    peerDependenciesMeta:
+      '@solana/kit':
+        optional: true
+      '@solana/kit-plugin-rpc':
+        optional: true
+      '@solana/kit-plugin-signer':
         optional: true
 
   '@solana/sysvars@5.5.1':
@@ -9017,6 +9057,22 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
+  '@solana/surfpool-darwin-arm64@1.6.0':
+    optional: true
+
+  '@solana/surfpool-darwin-x64@1.6.0':
+    optional: true
+
+  '@solana/surfpool-linux-x64-gnu@1.6.0':
+    optional: true
+
+  '@solana/surfpool@1.6.0(@solana/kit@8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10))':
+    optionalDependencies:
+      '@solana/kit': 8.3.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
+      '@solana/surfpool-darwin-arm64': 1.6.0
+      '@solana/surfpool-darwin-x64': 1.6.0
+      '@solana/surfpool-linux-x64-gnu': 1.6.0
+
   '@solana/sysvars@5.5.1(typescript@6.0.3)':
     dependencies:
       '@solana/accounts': 5.5.1(typescript@6.0.3)
@@ -9368,13 +9424,13 @@ snapshots:
       '@trustwallet/connect-core': 0.0.0
       '@trustwallet/connect-eip155-types': 0.0.0(@trustwallet/connect-core@0.0.0)
 
-  '@trustwallet/connect-eip155-react@0.0.0(@tanstack/react-query@5.102.1(react@19.2.8))(@trustwallet/connect-headless@0.0.0(react@19.2.8))(react@19.2.8)(viem@2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))':
+  '@trustwallet/connect-eip155-react@0.0.0(@tanstack/react-query@5.102.1(react@19.2.8))(@trustwallet/connect-headless@0.0.0(react@19.2.8))(react@19.2.8)(viem@2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))':
     dependencies:
       '@tanstack/react-query': 5.102.1(react@19.2.8)
       '@trustwallet/connect-eip155-core': 0.0.0
       '@trustwallet/connect-headless': 0.0.0(react@19.2.8)
       react: 19.2.8
-      viem: 2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+      viem: 2.55.19(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
 
   '@trustwallet/connect-eip155-types@0.0.0(@trustwallet/connect-core@0.0.0)':
     dependencies:
@@ -9385,9 +9441,9 @@ snapshots:
       '@trustwallet/connect-core': 0.0.0
       react: 19.2.8
 
-  '@trustwallet/connect-react@0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)':
+  '@trustwallet/connect-react@0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)':
     dependencies:
-      '@trustwallet/connect-ui-logic': 0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@trustwallet/connect-ui-logic': 0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       cuer: 0.0.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -9411,25 +9467,25 @@ snapshots:
     dependencies:
       '@trustwallet/connect-core': 0.0.0
 
-  '@trustwallet/connect-ui-logic@0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@trustwallet/connect-ui-logic@0.0.0(@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@trustwallet/connect-headless': 0.0.0(react@19.2.8)
       '@trustwallet/connect-utils': 0.0.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
     optionalDependencies:
-      '@trustwallet/connect-walletconnect': 0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+      '@trustwallet/connect-walletconnect': 0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
 
   '@trustwallet/connect-utils@0.0.0': {}
 
-  '@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)':
+  '@trustwallet/connect-walletconnect@0.0.0(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(react@19.2.8)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)':
     dependencies:
       '@trustwallet/connect-bip122-types': 0.0.0(@trustwallet/connect-core@0.0.0)
       '@trustwallet/connect-core': 0.0.0
       '@trustwallet/connect-eip155-types': 0.0.0(@trustwallet/connect-core@0.0.0)
       '@trustwallet/connect-solana-types': 0.0.0(@trustwallet/connect-core@0.0.0)
       '@trustwallet/connect-utils': 0.0.0
-      '@walletconnect/sign-client': 2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+      '@walletconnect/sign-client': 2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
       '@walletconnect/types': 2.23.1(@react-native-async-storage/async-storage@1.24.0)
     optionalDependencies:
       react: 19.2.8
@@ -9853,13 +9909,13 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@walletconnect/core@2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)':
+  '@walletconnect/core@2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)':
     dependencies:
       '@walletconnect/heartbeat': 1.2.2
       '@walletconnect/jsonrpc-provider': 1.0.14
       '@walletconnect/jsonrpc-types': 1.0.4
       '@walletconnect/jsonrpc-utils': 1.0.8
-      '@walletconnect/jsonrpc-ws-connection': 1.0.16(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      '@walletconnect/jsonrpc-ws-connection': 1.0.16(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@walletconnect/keyvaluestorage': 1.1.1(@react-native-async-storage/async-storage@1.24.0)
       '@walletconnect/logger': 3.0.1
       '@walletconnect/relay-api': 1.0.11
@@ -10477,9 +10533,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@walletconnect/sign-client@2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)':
+  '@walletconnect/sign-client@2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)':
     dependencies:
-      '@walletconnect/core': 2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)(zod@4.4.3)
+      '@walletconnect/core': 2.23.1(@react-native-async-storage/async-storage@1.24.0)(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)(zod@4.4.3)
       '@walletconnect/events': 1.0.1
       '@walletconnect/heartbeat': 1.2.2
       '@walletconnect/jsonrpc-utils': 1.0.8
