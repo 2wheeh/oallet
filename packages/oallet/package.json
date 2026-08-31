@@ -28,6 +28,11 @@
       "types": "./dist/playwright.d.ts",
       "default": "./dist/playwright.js"
     },
+    "./solana": {
+      "source": "./src/solana.ts",
+      "types": "./dist/solana.d.ts",
+      "default": "./dist/solana.js"
+    },
     "./walletconnect": {
       "source": "./src/walletconnect.ts",
       "types": "./dist/walletconnect.d.ts",
@@ -48,6 +53,10 @@
         "types": "./dist/playwright.d.ts",
         "default": "./dist/playwright.js"
       },
+      "./solana": {
+        "types": "./dist/solana.d.ts",
+        "default": "./dist/solana.js"
+      },
       "./walletconnect": {
         "types": "./dist/walletconnect.d.ts",
         "default": "./dist/walletconnect.js"
@@ -62,7 +71,8 @@
   "dependencies": {
     "@oallet/core": "workspace:^",
     "@oallet/evm": "workspace:^",
-    "@oallet/playwright": "workspace:^"
+    "@oallet/playwright": "workspace:^",
+    "@oallet/solana": "workspace:^"
   },
   "peerDependencies": {
     "@oallet/walletconnect": "workspace:^"
