@@ -85,6 +85,58 @@ test('creates a WalletConnect fixture lazily and disposes it after use', async (
   expect(dispose).toHaveBeenCalledTimes(1)
 })
 
+test('does not swallow an undefined failure from the test body', async () => {
+  let fixtures: Record<string, unknown> = {}
+  const base = {
+    extend(value: unknown) {
+      fixtures = value as Record<string, unknown>
+      return this
+    },
+  } as unknown as TestType<{ context: BrowserContext }, Record<never, never>>
+  const environment = testEnvironment()
+  const dispose = vi.fn(async () => undefined)
+  extend(base, {
+    environment: () => environment,
+    walletConnect: async () => ({ dispose }),
+  })
+  const run = fixtures.walletConnect as (
+    args: { oallet: typeof environment },
+    use: (value: { dispose(): Promise<void> }) => Promise<void>,
+    testInfo: TestInfo,
+  ) => Promise<void>
+
+  await expect(
+    run({ oallet: environment }, async () => Promise.reject(undefined), {} as TestInfo),
+  ).rejects.toBeUndefined()
+  expect(dispose).toHaveBeenCalledTimes(1)
+})
+
+test('does not swallow an undefined failure from client disposal', async () => {
+  let fixtures: Record<string, unknown> = {}
+  const base = {
+    extend(value: unknown) {
+      fixtures = value as Record<string, unknown>
+      return this
+    },
+  } as unknown as TestType<{ context: BrowserContext }, Record<never, never>>
+  const environment = testEnvironment()
+  const dispose = vi.fn(async () => Promise.reject(undefined))
+  extend(base, {
+    environment: () => environment,
+    walletConnect: async () => ({ dispose }),
+  })
+  const run = fixtures.walletConnect as (
+    args: { oallet: typeof environment },
+    use: (value: { dispose(): Promise<void> }) => Promise<void>,
+    testInfo: TestInfo,
+  ) => Promise<void>
+
+  await expect(
+    run({ oallet: environment }, async () => undefined, {} as TestInfo),
+  ).rejects.toBeUndefined()
+  expect(dispose).toHaveBeenCalledTimes(1)
+})
+
 test('includes WalletConnect correlation and failure stage in text traces', async () => {
   let fixture: unknown
   const base = {

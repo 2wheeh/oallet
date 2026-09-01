@@ -195,8 +195,22 @@ When every WalletConnect test uses the same client configuration, let the Playwr
 fixture create the client lazily and dispose it after the test:
 
 ```ts
+const createEnvironment = () =>
+  Environment.create({
+    wallets: [
+      Wallet.eoa({
+        accounts: [Identity.alice],
+        chains: [
+          { chain: anvil, transport: http(process.env.ANVIL_RPC_URL) },
+        ],
+        id: 'test-wallet',
+        name: 'Oallet',
+      }),
+    ],
+  })
+
 const test = Fixture.extend(base, {
-  environment: () => environment,
+  environment: createEnvironment,
   walletConnect: ({ oallet }) =>
     Client.create({
       environment: oallet,

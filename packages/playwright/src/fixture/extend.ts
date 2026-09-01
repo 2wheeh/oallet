@@ -117,26 +117,30 @@ async function useManaged<Value extends extend.ManagedWalletConnect>(
   value: Value,
   use: (value: Value) => Promise<void>,
 ) {
+  let useFailed = false
   let useError: unknown
   try {
     await use(value)
   } catch (error) {
+    useFailed = true
     useError = error
   }
+  let cleanupFailed = false
   let cleanupError: unknown
   try {
     await value.dispose()
   } catch (error) {
+    cleanupFailed = true
     cleanupError = error
   }
-  if (useError !== undefined && cleanupError !== undefined) {
+  if (useFailed && cleanupFailed) {
     throw new AggregateError(
       [useError, cleanupError],
       'WalletConnect test and client disposal both failed',
     )
   }
-  if (useError !== undefined) throw useError
-  if (cleanupError !== undefined) throw cleanupError
+  if (useFailed) throw useError
+  if (cleanupFailed) throw cleanupError
 }
 
 function traceField(name: string, value: unknown) {
