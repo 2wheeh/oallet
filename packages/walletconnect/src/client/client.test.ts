@@ -2,7 +2,22 @@ import { EventEmitter } from 'node:events'
 import { Environment, Profile, type Wallet } from '@oallet/core'
 import { expect, test, vi } from 'vitest'
 
+import { PairingTimeoutError } from '../errors/errors.js'
 import { create, createWithPeer, type Peer } from './create.js'
+
+test('constructs pairing timeouts from explicit stage options', () => {
+  const cause = new Error('relay stalled')
+  const error = new PairingTimeoutError('Pairing timed out', {
+    cause,
+    stage: 'pairing',
+  })
+
+  expect(error).toMatchObject({
+    cause,
+    code: 'OALLET_WC_PAIRING_TIMEOUT',
+    stage: 'pairing',
+  })
+})
 
 function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
   let emitProviderEvent: Wallet.AdapterContext['emit'] = async () => undefined
