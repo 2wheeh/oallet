@@ -26,6 +26,16 @@ export class UnsupportedFrameError extends Errors.BaseError {
 }
 
 export class QrNotFoundError extends Errors.BaseError {
-  override readonly code = 'OALLET_PLAYWRIGHT_QR_NOT_FOUND'
+  override readonly code: string = 'OALLET_PLAYWRIGHT_QR_NOT_FOUND'
   override name = 'Playwright.QrNotFoundError'
+}
+
+export class QrTargetUnavailableError extends QrNotFoundError {
+  override readonly code = 'OALLET_PLAYWRIGHT_QR_TARGET_UNAVAILABLE'
+  override name = 'Playwright.QrTargetUnavailableError'
+}
+
+export class QrDecodeError extends QrNotFoundError {
+  override readonly code = 'OALLET_PLAYWRIGHT_QR_DECODE_FAILED'
+  override name = 'Playwright.QrDecodeError'
 }

@@ -27,6 +27,34 @@ test('retries while a QR screenshot is not ready to decode', async () => {
   expect(attempts).toBe(2)
 })
 
+test('distinguishes a target that cannot be captured', async () => {
+  const cause = new Error('locator did not become visible')
+
+  await expect(
+    Qr.scan(
+      {
+        screenshot: async () => {
+          throw cause
+        },
+      },
+      { timeout: 0 },
+    ),
+  ).rejects.toMatchObject({
+    cause,
+    code: 'OALLET_PLAYWRIGHT_QR_TARGET_UNAVAILABLE',
+    name: 'Playwright.QrTargetUnavailableError',
+  })
+})
+
+test('distinguishes a visible target whose pixels cannot be decoded', async () => {
+  await expect(
+    Qr.scan({ screenshot: async () => Buffer.from('not an image') }, { timeout: 0 }),
+  ).rejects.toMatchObject({
+    code: 'OALLET_PLAYWRIGHT_QR_DECODE_FAILED',
+    name: 'Playwright.QrDecodeError',
+  })
+})
+
 function renderQr(value: string) {
   const matrix = encodeQR(value, 'raw', { border: 4 })
   const firstRow = matrix[0]

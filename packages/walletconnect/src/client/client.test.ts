@@ -452,12 +452,34 @@ test('allows only one active pairing and becomes ready after a timeout', async (
   expect(() =>
     client.pair({ uri: 'wc:second@2?relay-protocol=irn&symKey=secret' }),
   ).toThrowError(expect.objectContaining({ code: 'OALLET_WC_PAIRING_IN_PROGRESS' }))
-  await expect(first).rejects.toMatchObject({ code: 'OALLET_WC_PAIRING_TIMEOUT' })
+  await expect(first).rejects.toMatchObject({
+    code: 'OALLET_WC_PAIRING_TIMEOUT',
+    stage: 'proposal',
+  })
 
   const second = client.pair({ uri: 'wc:second@2?relay-protocol=irn&symKey=secret' })
   events.emit('session_proposal', proposal({ pairingTopic: 'first' }))
   events.emit('session_proposal', proposal({ pairingTopic: 'second' }))
   await expect(second).resolves.toBeDefined()
+})
+
+test('wraps a pairing start failure with a stable stage and error code', async () => {
+  const { client, environment, peer } = setup()
+  const cause = new Error('relay unavailable')
+  vi.mocked(peer.pair).mockRejectedValueOnce(cause)
+
+  await expect(
+    client.pair({ uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret' }),
+  ).rejects.toMatchObject({
+    cause,
+    code: 'OALLET_WC_PAIRING_START_FAILED',
+    stage: 'pairing',
+  })
+  expect(environment.trace.events.at(-1)).toMatchObject({
+    reason: 'error',
+    stage: 'pairing',
+    type: 'walletconnect.pairing.failed',
+  })
 })
 
 test('reset cancels an active pairing and leaves the client reusable', async () => {
@@ -674,10 +696,10 @@ test('dispose waits for an in-flight approval and disconnects its late session',
   expect(peer.disconnectSession).toHaveBeenCalledTimes(1)
 })
 
-test('bounds a hung pairing cleanup before allowing another pairing', async () => {
+test('reports a hung pairing cleanup separately before allowing another pairing', async () => {
   vi.useFakeTimers()
   try {
-    const { client, events, peer } = setup()
+    const { client, environment, events, peer } = setup()
     vi.mocked(peer.pair).mockImplementationOnce(() => new Promise(() => undefined))
     const pairing = client.pair({
       timeout: 1,
@@ -688,7 +710,13 @@ test('bounds a hung pairing cleanup before allowing another pairing', async () =
     await vi.advanceTimersByTimeAsync(5_001)
     const error = await pairingResult
     expect(error).toMatchObject({
-      code: 'OALLET_WC_PAIRING_TIMEOUT',
+      code: 'OALLET_WC_PAIRING_CLEANUP_FAILED',
+      stage: 'cleanup',
+    })
+    expect(environment.trace.events.at(-1)).toMatchObject({
+      reason: 'timeout',
+      stage: 'cleanup',
+      type: 'walletconnect.pairing.failed',
     })
 
     const next = client.pair({ uri: 'wc:next@2?relay-protocol=irn&symKey=secret' })

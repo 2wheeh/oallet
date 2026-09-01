@@ -2,7 +2,7 @@ import type { Locator } from '@playwright/test'
 import { PNG } from 'pngjs'
 import decodeQR from 'qr/decode.js'
 
-import { QrNotFoundError } from '../errors/errors.js'
+import { QrDecodeError, QrTargetUnavailableError } from '../errors/errors.js'
 
 const defaultTimeout = 15_000
 const retryInterval = 100
@@ -12,12 +12,27 @@ export async function scan(
   options: scan.Options = {},
 ): Promise<string> {
   const deadline = Date.now() + (options.timeout ?? defaultTimeout)
-  let cause: unknown
+  let captureCause: unknown
+  let decodeCause: unknown
+  let captured = false
   let remaining: number
 
   do {
+    let bytes: Buffer
     try {
-      const bytes = await target.screenshot()
+      bytes = await target.screenshot({
+        timeout: Math.max(1, deadline - Date.now()),
+      })
+      captured = true
+    } catch (error) {
+      captureCause = error
+      remaining = deadline - Date.now()
+      if (remaining > 0) {
+        await delay(Math.min(retryInterval, remaining))
+      }
+      continue
+    }
+    try {
       const image = PNG.sync.read(bytes)
       const input = { data: image.data, height: image.height, width: image.width }
       try {
@@ -26,20 +41,28 @@ export async function scan(
         return decodeQR(input, { cropToSquare: true })
       }
     } catch (error) {
-      cause = error
+      decodeCause = error
     }
 
     remaining = deadline - Date.now()
     if (remaining > 0) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(retryInterval, remaining)),
-      )
+      await delay(Math.min(retryInterval, remaining))
     }
   } while (remaining > 0)
 
-  throw new QrNotFoundError('Could not decode a QR code from the target screenshot', {
-    cause,
+  if (!captured) {
+    throw new QrTargetUnavailableError(
+      'Could not capture the QR target before the scan timed out',
+      { cause: captureCause },
+    )
+  }
+  throw new QrDecodeError('Captured the QR target but could not decode a QR code', {
+    cause: decodeCause,
   })
+}
+
+function delay(duration: number) {
+  return new Promise((resolve) => setTimeout(resolve, duration))
 }
 
 export declare namespace scan {

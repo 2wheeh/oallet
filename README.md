@@ -191,6 +191,34 @@ await request.approve()
 await session.disconnect()
 ```
 
+When every WalletConnect test uses the same client configuration, let the Playwright
+fixture create the client lazily and dispose it after the test:
+
+```ts
+const test = Fixture.extend(base, {
+  environment: () => environment,
+  walletConnect: ({ oallet }) =>
+    Client.create({
+      environment: oallet,
+      projectId: process.env.VITE_WC_PROJECT_ID!,
+      walletId: 'test-wallet',
+    }),
+})
+
+test('connects', async ({ oallet, page, walletConnect }) => {
+  const uri = await Qr.scan(page.getByTestId('walletconnect-qr'))
+  const proposal = await walletConnect.pair({ uri })
+  // Inspect, approve, or reject the proposal explicitly in the test.
+})
+```
+
+The fixture manages only client creation and disposal. QR scanning, pairing, proposal
+inspection, approval, rejection, and session disconnection remain explicit test steps.
+`Qr.scan()` reports whether the target could not be captured or its captured pixels
+could not be decoded. Pairing failures similarly identify pairing start, proposal wait,
+and cleanup stages with stable error codes. Failure trace text includes the WalletConnect
+connection ID, stage, and reason so a JSON trace is not required for initial triage.
+
 For TypeScript projects targeting ES2022, include `"ESNext.Disposable"` in
 `compilerOptions.lib` to type-check `await using`.
 
