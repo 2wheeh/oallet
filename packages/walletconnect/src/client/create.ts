@@ -7,8 +7,10 @@ import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils'
 import {
   ClientDisposedError,
   InvalidUriError,
+  PairingCleanupError,
   PairingInProgressError,
   PairingResetError,
+  PairingStartError,
   PairingTimeoutError,
   ProjectIdRequiredError,
   ProposalSettledError,
@@ -52,6 +54,7 @@ export type Instance = AsyncDisposable & {
 type PairingAttempt = {
   readonly connectionId: string
   pairing: Promise<void>
+  pairingSettled: boolean
   readonly reject: (reason: unknown) => void
   readonly topic: string
 }
@@ -243,6 +246,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     const attempt: PairingAttempt = {
       connectionId,
       pairing: Promise.resolve(),
+      pairingSettled: false,
       reject: (reason) => rejectAttempt(reason),
       topic,
     }
@@ -261,15 +265,27 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       if (event.params.pairingTopic === topic) resolveProposal(event)
     }
     peer.on('session_proposal', onProposal)
-    try {
-      attempt.pairing = peer.pair({ uri })
-    } catch (error) {
-      attempt.pairing = Promise.reject(error)
-    }
+    attempt.pairing = Promise.resolve()
+      .then(() => peer.pair({ uri }))
+      .then(
+        () => {
+          attempt.pairingSettled = true
+        },
+        (cause: unknown) => {
+          attempt.pairingSettled = true
+          throw new PairingStartError('Failed to start WalletConnect pairing', { cause })
+        },
+      )
     const finishAttempt = withTimeout(
       Promise.all([attempt.pairing, proposalEvent]).then(([, event]) => event),
       pairOptions.timeout ?? defaultPairingTimeout,
-      new PairingTimeoutError('Timed out waiting for a WalletConnect session proposal'),
+      () =>
+        new PairingTimeoutError(
+          attempt.pairingSettled
+            ? 'Timed out waiting for a WalletConnect session proposal'
+            : 'Timed out starting WalletConnect pairing',
+          attempt.pairingSettled ? 'proposal' : 'pairing',
+        ),
     )
     void finishAttempt.then(
       () => peer.off('session_proposal', onProposal),
@@ -288,12 +304,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
         return proposalHandle(state)
       },
       async (error: unknown) => {
-        trace({
-          connectionId,
-          reason: pairingFailureReason(error),
-          type: 'walletconnect.pairing.failed',
-          walletId,
-        })
+        let failure = error
         try {
           if (
             !(error instanceof PairingResetError || error instanceof ClientDisposedError)
@@ -307,16 +318,25 @@ function createWithResource(options: create.Options, resource: Resource): Instan
                 new Error('Timed out cleaning up WalletConnect pairing'),
               )
             } catch (cleanupError) {
-              if (error instanceof PairingTimeoutError) {
-                throw new PairingTimeoutError(error.message, { cause: cleanupError })
-              }
-              throw new AggregateError(
-                [error, cleanupError],
-                'WalletConnect pairing and cleanup failed',
+              failure = new PairingCleanupError(
+                'Failed to clean up WalletConnect pairing after pairing failed',
+                {
+                  cause: new AggregateError(
+                    [error, cleanupError],
+                    'WalletConnect pairing and cleanup failed',
+                  ),
+                },
               )
             }
           }
-          throw error
+          trace({
+            connectionId,
+            reason: pairingFailureReason(error),
+            stage: pairingFailureStage(failure),
+            type: 'walletconnect.pairing.failed',
+            walletId,
+          })
+          throw failure
         } finally {
           if (activePairing === attempt) activePairing = undefined
         }
@@ -720,13 +740,22 @@ function pairingFailureReason(error: unknown) {
   return 'error' as const
 }
 
+function pairingFailureStage(error: unknown) {
+  if (error instanceof PairingCleanupError) return error.stage
+  if (error instanceof PairingTimeoutError) return error.stage
+  return 'pairing' as const
+}
+
 function withTimeout<Value>(
   promise: Promise<Value>,
   duration: number,
-  error: Error,
+  error: Error | (() => Error),
 ): Promise<Value> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(error), duration)
+    const timer = setTimeout(
+      () => reject(typeof error === 'function' ? error() : error),
+      duration,
+    )
     promise.then(
       (value) => {
         clearTimeout(timer)
