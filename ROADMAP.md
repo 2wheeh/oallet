@@ -1,4 +1,4 @@
-# Roadmap to first release
+# Roadmap
 
 > Oallet gives dApp and SDK teams deterministic wallets that exercise real wallet
 > surfaces without application-side mock connectors.
@@ -23,7 +23,8 @@
 - [x] Support multiple wallets, accounts, pages, and top-level origins
 - [x] Scope authorization and active chain state to each connection or session
 - [x] Add a thin Playwright fixture without depending on Playwright from core
-- [ ] Make unsupported browser and protocol versions fail fast
+- [x] Reject unsupported browser bridge protocol versions
+- [ ] Declare the supported browser matrix and fail fast on unsupported browsers
 
 ## Request lifecycle
 
@@ -43,7 +44,7 @@
 - [x] Proxy safe read RPC methods and block node administration methods
 - [x] Sign and submit real EOA transactions to consumer-provided test infrastructure
 - [x] Return the RPC-provided transaction hash immediately
-- [ ] Verify receipt polling through unmodified viem and Wagmi application flows
+- [x] Verify receipt polling through unmodified viem and Wagmi application flows
 
 ## WalletConnect
 
@@ -55,7 +56,10 @@
 - [x] Validate required namespaces strictly and approve supported optional
       intersections
 - [x] Route session requests through the same approval and EVM execution machinery
-- [ ] Cover session update, disconnect, expiry, and same-test page reload restoration
+- [x] Cover wallet-initiated disconnect and same-client reconnect through a real relay
+- [ ] Cover session update and expiry behavior
+- [ ] Restore an active session across a same-test page reload
+- [x] Add real-relay browser and direct-protocol canaries
 - [ ] Run real-relay canaries as a release gate rather than on every pull request
 
 ## State and diagnostics
@@ -70,13 +74,16 @@
 ## Dogfood and release gate
 
 - [ ] Add a repository-owned direct EIP-1193 fixture dApp
-- [ ] Add Wagmi and viem transaction-and-receipt fixtures
-- [ ] Add a Reown WalletConnect QR fixture
-- [ ] Dogfood EVM and WalletConnect against DelightKit
-- [ ] Dogfood EVM, Solana, and WalletConnect against Trust Connect SDK
+- [x] Add a Wagmi fixture with viem-backed transaction and receipt verification
+- [x] Add repository-owned WalletConnect QR and direct SignClient fixtures
+- [x] Dogfood EVM and WalletConnect against DelightKit
+- [x] Dogfood EVM and WalletConnect against Trust Connect SDK
+- [x] Dogfood WalletConnect QR handling against RainbowKit
+- [ ] Dogfood Solana against Trust Connect SDK after the Solana adapter exists
 - [ ] Reuse Duroo AA Playground artifacts for later AA conformance work
 - [ ] Pass the EVM EOA and WalletConnect MVP acceptance matrix on Chromium
-- [ ] Publish the first release only after real relay and real transaction canaries pass
+- [x] Gate package publication on the full verification workflow, including real relay
+      and real transaction canaries
 
 ## Post-release chain adapters
 
@@ -84,7 +91,7 @@
 - [ ] Use Solana Kit-native transaction and signing interfaces
 - [ ] Add a Keplr-compatible Cosmos Adapter with Amino and Direct signing
 - [ ] Configure Cosmos derivation, coin type, and Bech32 prefix per chain
-- [ ] Keep chain node lifecycle and account funding owned by consumer test infrastructure
+- [x] Keep chain node lifecycle and account funding owned by consumer test infrastructure
 
 ## Later fidelity
 
