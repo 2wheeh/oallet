@@ -1,5 +1,14 @@
 # @oallet/core
 
+## 0.4.0
+
+### Minor Changes
+
+- [#17](https://github.com/2wheeh/oallet/pull/17) [`e562522`](https://github.com/2wheeh/oallet/commit/e5625227a93178ff279269faa3b9c7a48df09768) Thanks [@2wheeh](https://github.com/2wheeh)! - Make WalletConnect E2E failures easier to localize: distinguish unavailable QR targets
+  from undecodable pixels, report pairing start/proposal wait/cleanup stages with stable
+  errors and trace fields, and optionally manage the WalletConnect client through the
+  Playwright fixture without hiding proposal approval decisions.
+
 ## 0.3.1
 
 ### Patch Changes
