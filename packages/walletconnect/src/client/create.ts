@@ -284,7 +284,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
           attempt.pairingSettled
             ? 'Timed out waiting for a WalletConnect session proposal'
             : 'Timed out starting WalletConnect pairing',
-          attempt.pairingSettled ? 'proposal' : 'pairing',
+          { stage: attempt.pairingSettled ? 'proposal' : 'pairing' },
         ),
     )
     void finishAttempt.then(

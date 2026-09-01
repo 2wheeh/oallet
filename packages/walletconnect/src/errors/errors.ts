@@ -28,12 +28,12 @@ export class PairingTimeoutError extends Errors.BaseError {
 
   constructor(
     message: string,
-    stageOrOptions: 'pairing' | 'proposal' | ErrorOptions = 'proposal',
-    options?: ErrorOptions,
+    options: ErrorOptions & {
+      readonly stage: 'pairing' | 'proposal'
+    },
   ) {
-    const stage = typeof stageOrOptions === 'string' ? stageOrOptions : 'proposal'
-    super(message, typeof stageOrOptions === 'string' ? options : stageOrOptions)
-    this.stage = stage
+    super(message, options)
+    this.stage = options.stage
   }
 }
 

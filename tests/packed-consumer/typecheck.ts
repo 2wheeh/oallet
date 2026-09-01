@@ -22,6 +22,13 @@ const wallet = Wallet.eoa({
 const environment = Environment.create({
   wallets: [wallet],
 })
+const walletConnectResource = {
+  dispose: async () => undefined,
+} satisfies Fixture.extend.WalletConnectResource
+const pairingTimeout = new WalletConnectEntry.Errors.PairingTimeoutError(
+  'Pairing timed out',
+  { stage: 'pairing' },
+)
 
 const publicSurface = {
   clientCreate: Client.create,
@@ -32,7 +39,9 @@ const publicSurface = {
   evmWallet: EvmEntry.Wallet,
   fixtureExtend: Fixture.extend,
   playwrightFixture: PlaywrightEntry.Fixture,
+  pairingTimeout,
   walletConnectClient: WalletConnectEntry.Client,
+  walletConnectResource,
 }
 
 void publicSurface

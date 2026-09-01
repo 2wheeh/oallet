@@ -8,7 +8,7 @@ type FixtureEnvironment = attach.Options['environment'] &
 
 export type Value<
   EnvironmentType extends FixtureEnvironment = FixtureEnvironment,
-  WalletConnectType extends extend.ManagedWalletConnect = never,
+  WalletConnectType extends extend.WalletConnectResource = never,
 > = { readonly oallet: EnvironmentType } & ([WalletConnectType] extends [never]
   ? object
   : { readonly walletConnect: WalletConnectType })
@@ -17,7 +17,7 @@ export function extend<
   TestArgs extends { context: BrowserContext },
   WorkerArgs extends object,
   EnvironmentType extends FixtureEnvironment,
-  WalletConnectType extends extend.ManagedWalletConnect,
+  WalletConnectType extends extend.WalletConnectResource,
 >(
   base: TestType<TestArgs, WorkerArgs>,
   options: extend.WalletConnectOptions<EnvironmentType, WalletConnectType>,
@@ -36,7 +36,7 @@ export function extend<
   TestArgs extends { context: BrowserContext },
   WorkerArgs extends object,
   EnvironmentType extends FixtureEnvironment,
-  WalletConnectType extends extend.ManagedWalletConnect,
+  WalletConnectType extends extend.WalletConnectResource,
 >(
   base: TestType<TestArgs, WorkerArgs>,
   options: extend.Options<EnvironmentType> &
@@ -113,7 +113,7 @@ export function extend<
   ) as TestType<TestArgs & Value<EnvironmentType, WalletConnectType>, WorkerArgs>
 }
 
-async function useManaged<Value extends extend.ManagedWalletConnect>(
+async function useManaged<Value extends extend.WalletConnectResource>(
   value: Value,
   use: (value: Value) => Promise<void>,
 ) {
@@ -169,7 +169,8 @@ function traceText(environment: FixtureEnvironment) {
 }
 
 export declare namespace extend {
-  type ManagedWalletConnect = {
+  /** Lifecycle interface required from a test-scoped WalletConnect resource. */
+  type WalletConnectResource = {
     dispose(): Promise<void>
   }
   type Options<EnvironmentType extends FixtureEnvironment> = {
@@ -179,7 +180,7 @@ export declare namespace extend {
   }
   type WalletConnectOptions<
     EnvironmentType extends FixtureEnvironment,
-    WalletConnectType extends ManagedWalletConnect,
+    WalletConnectType extends WalletConnectResource,
   > = Options<EnvironmentType> & {
     readonly walletConnect: (
       fixtures: { readonly oallet: EnvironmentType },
