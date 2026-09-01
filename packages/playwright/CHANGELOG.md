@@ -1,5 +1,24 @@
 # @oallet/playwright
 
+## 0.5.0
+
+### Minor Changes
+
+- [#19](https://github.com/2wheeh/oallet/pull/19) [`d77b165`](https://github.com/2wheeh/oallet/commit/d77b165b56d6493998b96aaaf0c54a73d59f43ce) Thanks [@2wheeh](https://github.com/2wheeh)! - Clean up the WalletConnect timeout error and fixture resource interfaces.
+  
+  ```diff
+  -new PairingTimeoutError(message, stage, { cause })
+  +new PairingTimeoutError(message, { stage, cause })
+  
+  -type Fixture.extend.ManagedWalletConnect
+  +type Fixture.extend.WalletConnectResource
+  ```
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @oallet/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
