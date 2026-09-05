@@ -86,7 +86,7 @@ function setup(lifecycle: Parameters<typeof createWithPeer>[2] = {}) {
   const approveSession = vi.fn(async (input: { id: number; namespaces: unknown }) =>
     approvedSession(input.namespaces),
   )
-  const respondSessionRequest = vi.fn(async () => undefined)
+  const respondSessionRequest = vi.fn(async (): Promise<void> => undefined)
   const emitSessionEvent = vi.fn(async () => undefined)
   const peer = {
     approveSession,
@@ -344,6 +344,12 @@ test('cancels pending requests when the peer deletes the session', async () => {
   })
   await new Promise((resolve) => setTimeout(resolve, 0))
   expect(respondSessionRequest).not.toHaveBeenCalled()
+  expect(environment.trace.events).toContainEqual(
+    expect.objectContaining({
+      type: 'walletconnect.request.cancelled',
+      rpcRequestId: 45,
+    }),
+  )
 })
 
 test('forwards wallet chain changes to the matching WalletConnect session', async () => {
@@ -585,6 +591,7 @@ test('records stable WalletConnect events without raw topics or URIs', async () 
     'walletconnect.pairing.started',
     'walletconnect.proposal.received',
     'walletconnect.proposal.approved',
+    'walletconnect.session.disconnecting',
     'walletconnect.session.disconnected',
     'walletconnect.client.disposed',
   ])
@@ -764,4 +771,514 @@ test('reserves disposal time even when peer cleanup hangs', async () => {
   } finally {
     vi.useRealTimers()
   }
+})
+
+async function connect(context: ReturnType<typeof setup>) {
+  const pairing = context.client.pair({
+    uri: 'wc:pairing@2?relay-protocol=irn&symKey=secret',
+  })
+  context.events.emit('session_proposal', proposal())
+  return (await pairing).approve()
+}
+
+function receiveRequest(context: ReturnType<typeof setup>, id = 42) {
+  context.events.emit('session_request', {
+    id,
+    params: {
+      chainId: 'eip155:1',
+      request: {
+        method: 'personal_sign',
+        params: ['0x6869', '0x0000000000000000000000000000000000000001'],
+      },
+    },
+    topic: 'session-topic',
+    verifyContext: {},
+  })
+}
+
+function deferred() {
+  let resolve!: () => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
+}
+
+test('reports disconnect completion only after the peer call and allows retry after failure', async () => {
+  const context = setup()
+  const session = await connect(context)
+  const pending = deferred()
+  vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+
+  const first = session.disconnect()
+  expect(session.disconnect()).toBe(first)
+  expect(context.environment.trace.events.at(-1)?.type).toBe(
+    'walletconnect.session.disconnecting',
+  )
+  const failure = expect(first).rejects.toThrow('relay failed')
+  pending.reject(new Error('relay failed'))
+  await failure
+  expect(context.environment.trace.events.at(-1)?.type).toBe(
+    'walletconnect.session.disconnectFailed',
+  )
+
+  const retry = session.disconnect()
+  expect(retry).not.toBe(first)
+  expect(session.disconnect()).toBe(retry)
+  await retry
+  expect(context.peer.disconnectSession).toHaveBeenCalledTimes(2)
+  expect(context.environment.trace.events.at(-1)?.type).toBe(
+    'walletconnect.session.disconnected',
+  )
+  await context.client.dispose()
+  expect(context.peer.disconnectSession).toHaveBeenCalledTimes(2)
+})
+
+test.each(['reset', 'dispose'] as const)(
+  'retries a failed session disconnect during %s',
+  async (operation) => {
+    const context = setup()
+    const session = await connect(context)
+    vi.mocked(context.peer.disconnectSession).mockRejectedValueOnce(
+      new Error('relay failed'),
+    )
+    await expect(session.disconnect()).rejects.toThrow('relay failed')
+
+    await context.client[operation]()
+    expect(context.peer.disconnectSession).toHaveBeenCalledTimes(2)
+    expect(context.environment.trace.events).toContainEqual(
+      expect.objectContaining({
+        type: 'walletconnect.session.disconnected',
+        reason: operation,
+      }),
+    )
+    await context.client.dispose()
+  },
+)
+
+test.each(['reset', 'dispose'] as const)(
+  '%s retries a disconnect that fails while cleanup is waiting',
+  async (operation) => {
+    const context = setup()
+    const session = await connect(context)
+    const pending = deferred()
+    vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+    const disconnect = session.disconnect()
+    const originalFailure = expect(disconnect).rejects.toThrow('original attempt failed')
+    const cleanup = context.client[operation]()
+    const cleanupResult = cleanup.catch((error: unknown) => error)
+
+    pending.reject(new Error('original attempt failed'))
+
+    await originalFailure
+    expect(await cleanupResult).toBeUndefined()
+    expect(context.peer.disconnectSession).toHaveBeenCalledTimes(2)
+    expect(context.environment.trace.events).toContainEqual(
+      expect.objectContaining({
+        type: 'walletconnect.session.disconnected',
+        reason: operation,
+      }),
+    )
+    await context.client.dispose()
+  },
+)
+
+test.each(['reset', 'dispose'] as const)(
+  '%s does not retry an existing disconnect after its cleanup deadline',
+  async (operation) => {
+    vi.useFakeTimers()
+    try {
+      const context = setup()
+      const session = await connect(context)
+      const pending = deferred()
+      vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+      const disconnect = session.disconnect().catch((error: unknown) => error)
+      const cleanup = context.client[operation]().catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(operation === 'dispose' ? 4_000 : 5_000)
+      expect(await cleanup).toBeInstanceOf(AggregateError)
+
+      pending.reject(new Error('late failure'))
+      await disconnect
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1)
+      if (operation === 'reset') await context.client.dispose()
+      else await expect(context.client.dispose()).rejects.toBeInstanceOf(AggregateError)
+    } finally {
+      vi.useRealTimers()
+    }
+  },
+)
+
+test.each([
+  ['reset', false],
+  ['reset', true],
+  ['dispose', false],
+  ['dispose', true],
+] as const)(
+  '%s reports its own failed attempt without retrying it (existing disconnect: %s)',
+  async (operation, existing) => {
+    const context = setup()
+    const session = await connect(context)
+    const pending = deferred()
+    if (existing) {
+      vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+    }
+    const failure = new Error('cleanup attempt failed')
+    vi.mocked(context.peer.disconnectSession).mockRejectedValueOnce(failure)
+    const original = existing
+      ? session.disconnect().catch((error: unknown) => error)
+      : undefined
+    const cleanup = context.client[operation]().catch((error: unknown) => error)
+    if (existing) pending.reject(new Error('original attempt failed'))
+
+    await original
+    const error = await cleanup
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toEqual([failure])
+    expect(context.peer.disconnectSession).toHaveBeenCalledTimes(existing ? 2 : 1)
+    if (operation === 'reset') await context.client.dispose()
+    else await expect(context.client.dispose()).rejects.toBe(error)
+  },
+)
+
+test.each(['reset', 'dispose'] as const)(
+  '%s does not repeat an existing disconnect that succeeds',
+  async (operation) => {
+    const context = setup()
+    const session = await connect(context)
+    const pending = deferred()
+    vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+    const disconnect = session.disconnect()
+    const cleanup = context.client[operation]()
+    pending.resolve()
+
+    await disconnect
+    await cleanup
+    expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1)
+    await context.client.dispose()
+  },
+)
+
+test.each(['reset', 'dispose'] as const)(
+  '%s keeps the original cleanup deadline when its retry hangs',
+  async (operation) => {
+    vi.useFakeTimers()
+    try {
+      const disposeResource = vi.fn(async () => undefined)
+      const context = setup({ dispose: disposeResource })
+      const session = await connect(context)
+      const pending = deferred()
+      const retry = deferred()
+      vi.mocked(context.peer.disconnectSession)
+        .mockReturnValueOnce(pending.promise)
+        .mockReturnValueOnce(retry.promise)
+      const disconnect = session.disconnect().catch((error: unknown) => error)
+      const cleanup = context.client[operation]().catch((error: unknown) => error)
+      const budget = operation === 'dispose' ? 4_000 : 5_000
+      await vi.advanceTimersByTimeAsync(budget - 500)
+      pending.reject(new Error('original attempt failed'))
+      await disconnect
+      await vi.advanceTimersByTimeAsync(0)
+      expect(context.peer.disconnectSession).toHaveBeenCalledTimes(2)
+
+      await vi.advanceTimersByTimeAsync(500)
+      expect(await cleanup).toBeInstanceOf(AggregateError)
+      if (operation === 'dispose') expect(disposeResource).toHaveBeenCalledTimes(1)
+      retry.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+      if (operation === 'reset') await context.client.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  },
+)
+
+test('a peer delete completes local disconnect while the relay call remains pending', async () => {
+  const context = setup()
+  const session = await connect(context)
+  const pending = deferred()
+  vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+  const disconnect = session.disconnect()
+  await vi.waitFor(() => expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1))
+
+  context.events.emit('session_delete', { topic: 'session-topic' })
+
+  let completed = false
+  void disconnect.then(() => {
+    completed = true
+  })
+  await vi.waitFor(() => expect(completed).toBe(true))
+  await session.disconnect()
+  expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1)
+  await context.client.dispose()
+})
+
+test.each(['reset', 'dispose'] as const)(
+  'a peer delete completes %s without waiting for a hung relay call',
+  async (operation) => {
+    vi.useFakeTimers()
+    try {
+      const context = setup()
+      await connect(context)
+      vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(deferred().promise)
+      let result: 'completed' | 'failed' | undefined
+      const cleanup = context.client[operation]().then(
+        () => {
+          result = 'completed'
+        },
+        () => {
+          result = 'failed'
+        },
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1)
+
+      context.events.emit('session_delete', { topic: 'session-topic' })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(result).toBe('completed')
+      await cleanup
+      await context.client.dispose()
+      expect(context.events.listenerCount('session_delete')).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  },
+)
+
+test.each(['resolve', 'reject'] as const)(
+  'a peer-confirmed disconnect stays terminal when the SDK call will %s after disposal',
+  async (completion) => {
+    const context = setup()
+    const session = await connect(context)
+    const pending = deferred()
+    vi.mocked(context.peer.disconnectSession).mockReturnValueOnce(pending.promise)
+    const disconnect = session.disconnect()
+    await vi.waitFor(() =>
+      expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1),
+    )
+    context.events.emit('session_delete', { topic: 'session-topic' })
+
+    await disconnect
+    expect(
+      context.environment.trace.events.filter(
+        (event) => event.type === 'walletconnect.session.disconnected',
+      ),
+    ).toEqual([expect.objectContaining({ reason: 'peer' })])
+    await context.client.dispose()
+    const events = [...context.environment.trace.events]
+
+    if (completion === 'resolve') pending.resolve()
+    else pending.reject(new Error('topic already deleted'))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(context.environment.trace.events).toEqual(events)
+    expect(() => session.disconnect()).toThrow('WalletConnect client is disposed')
+    expect(context.peer.disconnectSession).toHaveBeenCalledTimes(1)
+  },
+)
+
+test.each(['result', 'error'] as const)(
+  'records SDK call completion for a %s response without claiming delivery',
+  async (outcome) => {
+    const context = setup()
+    await connect(context)
+    const pending = deferred()
+    context.respondSessionRequest.mockReturnValueOnce(pending.promise)
+    receiveRequest(context)
+    const request = await context.environment
+      .wallet('wallet')
+      .requests.next('personal_sign')
+    if (outcome === 'result') await request.approve()
+    else request.reject({ code: 4001, message: 'User rejected' })
+
+    await vi.waitFor(() => {
+      expect(context.environment.trace.events.at(-1)).toMatchObject({
+        type: 'walletconnect.response.started',
+        rpcRequestId: 42,
+        outcome,
+      })
+    })
+    pending.resolve()
+    await vi.waitFor(() => {
+      expect(context.environment.trace.events.at(-1)).toMatchObject({
+        type: 'walletconnect.response.completed',
+        rpcRequestId: 42,
+        outcome,
+      })
+    })
+    expect(context.respondSessionRequest).toHaveBeenCalledTimes(1)
+    await context.client.dispose()
+  },
+)
+
+test.each(['result', 'error'] as const)(
+  'traces a rejected SDK call for a %s response without attempting a second response',
+  async (outcome) => {
+    const context = setup()
+    await connect(context)
+    context.respondSessionRequest.mockRejectedValueOnce(
+      new Error('secret-topic symKey=secret'),
+    )
+    receiveRequest(context)
+    const request = await context.environment
+      .wallet('wallet')
+      .requests.next('personal_sign')
+    if (outcome === 'result') await request.approve()
+    else request.reject({ code: 4001, message: 'User rejected' })
+
+    await vi.waitFor(() => {
+      expect(context.environment.trace.events.at(-1)).toMatchObject({
+        type: 'walletconnect.response.failed',
+        chainId: 'eip155:1',
+        method: 'personal_sign',
+        rpcRequestId: 42,
+        outcome,
+      })
+    })
+    const events = context.environment.trace.events.filter(
+      (event) => 'rpcRequestId' in event,
+    )
+    expect(events.map((event) => event.type)).toEqual([
+      'walletconnect.request.received',
+      'walletconnect.response.started',
+      'walletconnect.response.failed',
+    ])
+    expect(
+      new Set(events.map((event) => 'connectionId' in event && event.connectionId)).size,
+    ).toBe(1)
+    expect(context.respondSessionRequest).toHaveBeenCalledTimes(1)
+    const text = JSON.stringify(events)
+    for (const secret of [
+      'session-topic',
+      'secret-topic',
+      'symKey',
+      '0xsigned',
+      '0x6869',
+    ]) {
+      expect(text).not.toContain(secret)
+    }
+    await context.client.dispose()
+  },
+)
+
+test.each(['received', 'approval', 'result'] as const)(
+  'attempts an SDK error response for a request interrupted at %s when disconnect fails',
+  async (stage) => {
+    const context = setup()
+    const session = await connect(context)
+    vi.mocked(context.peer.disconnectSession).mockRejectedValueOnce(
+      new Error('relay failed'),
+    )
+    receiveRequest(context)
+    if (stage !== 'received') {
+      const request = await context.environment
+        .wallet('wallet')
+        .requests.next('personal_sign')
+      // Start approval without yielding, so disconnect races with result dispatch.
+      if (stage === 'result') void request.approve().catch(() => undefined)
+    }
+    await expect(session.disconnect()).rejects.toThrow('relay failed')
+
+    await vi.waitFor(() => {
+      expect(context.respondSessionRequest).toHaveBeenCalledWith({
+        topic: 'session-topic',
+        response: {
+          id: 42,
+          jsonrpc: '2.0',
+          error: expect.objectContaining({ code: 6000 }),
+        },
+      })
+    })
+    expect(context.respondSessionRequest).toHaveBeenCalledTimes(1)
+    expect(context.environment.trace.events).toContainEqual(
+      expect.objectContaining({
+        type: 'walletconnect.request.cancelled',
+        rpcRequestId: 42,
+      }),
+    )
+    // Failed disconnects must not reactivate the wallet approval queue.
+    receiveRequest(context, 43)
+    await vi.waitFor(() => expect(context.respondSessionRequest).toHaveBeenCalledTimes(2))
+    expect(
+      context.environment.trace.events.filter(
+        (event) => event.type === 'request.received' && event.method === 'personal_sign',
+      ),
+    ).toHaveLength(stage === 'received' ? 0 : 1)
+    await session.disconnect()
+    await context.client.dispose()
+  },
+)
+
+test.each(['resolve', 'reject'] as const)(
+  'observes an in-flight response that will %s after disconnect',
+  async (completion) => {
+    const context = setup()
+    const session = await connect(context)
+    const pending = deferred()
+    context.respondSessionRequest.mockReturnValueOnce(pending.promise)
+    receiveRequest(context)
+    const request = await context.environment
+      .wallet('wallet')
+      .requests.next('personal_sign')
+    await request.approve()
+    await vi.waitFor(() => expect(context.respondSessionRequest).toHaveBeenCalledTimes(1))
+    await session.disconnect()
+    if (completion === 'resolve') pending.resolve()
+    else pending.reject(new Error('transport closed'))
+
+    await vi.waitFor(() =>
+      expect(context.environment.trace.events.at(-1)).toMatchObject({
+        type:
+          completion === 'resolve'
+            ? 'walletconnect.response.completed'
+            : 'walletconnect.response.failed',
+        rpcRequestId: 42,
+      }),
+    )
+    expect(context.respondSessionRequest).toHaveBeenCalledTimes(1)
+    await context.client.dispose()
+  },
+)
+
+test('correlates concurrent requests with the same method even when sends finish out of order', async () => {
+  const context = setup()
+  await connect(context)
+  const firstSend = deferred()
+  context.respondSessionRequest.mockReturnValueOnce(firstSend.promise)
+  receiveRequest(context, 41)
+  receiveRequest(context, 42)
+  const wallet = context.environment.wallet('wallet')
+  await (await wallet.requests.next('personal_sign')).approve()
+  await vi.waitFor(() => expect(context.respondSessionRequest).toHaveBeenCalledTimes(1))
+  await (await wallet.requests.next('personal_sign')).approve()
+  await vi.waitFor(() =>
+    expect(context.environment.trace.events.at(-1)).toMatchObject({
+      type: 'walletconnect.response.completed',
+      rpcRequestId: 42,
+    }),
+  )
+  firstSend.resolve()
+  await vi.waitFor(() =>
+    expect(context.environment.trace.events.at(-1)).toMatchObject({
+      type: 'walletconnect.response.completed',
+      rpcRequestId: 41,
+    }),
+  )
+
+  for (const rpcRequestId of [41, 42]) {
+    expect(
+      context.environment.trace.events
+        .filter((event) => 'rpcRequestId' in event && event.rpcRequestId === rpcRequestId)
+        .map((event) => event.type),
+    ).toEqual([
+      'walletconnect.request.received',
+      'walletconnect.response.started',
+      'walletconnect.response.completed',
+    ])
+  }
+  await context.client.dispose()
 })
