@@ -111,6 +111,32 @@ export type WalletConnectSessionDisconnected = WalletConnectConnectionBase & {
   readonly type: 'walletconnect.session.disconnected'
 }
 
+export type WalletConnectSessionDisconnect = WalletConnectConnectionBase & {
+  readonly reason: 'dispose' | 'reset' | 'session'
+  readonly type:
+    | 'walletconnect.session.disconnecting'
+    | 'walletconnect.session.disconnectFailed'
+}
+
+export type WalletConnectRequestEvent = WalletConnectConnectionBase & {
+  readonly chainId: string
+  readonly method: string
+  readonly rpcRequestId: number
+  readonly type: 'walletconnect.request.received' | 'walletconnect.request.cancelled'
+}
+
+/** SDK response call stages, not relay publish or dApp receipt confirmations. */
+export type WalletConnectResponseEvent = WalletConnectConnectionBase & {
+  readonly chainId: string
+  readonly method: string
+  readonly rpcRequestId: number
+  readonly outcome: 'result' | 'error'
+  readonly type:
+    | 'walletconnect.response.started'
+    | 'walletconnect.response.completed'
+    | 'walletconnect.response.failed'
+}
+
 export type WalletConnectClientEvent = Base & {
   readonly type: 'walletconnect.client.disposed' | 'walletconnect.client.reset'
   readonly walletId: string
@@ -121,6 +147,9 @@ export type WalletConnectEvent =
   | WalletConnectPairingFailed
   | WalletConnectPairingStarted
   | WalletConnectProposalEvent
+  | WalletConnectRequestEvent
+  | WalletConnectResponseEvent
+  | WalletConnectSessionDisconnect
   | WalletConnectSessionDisconnected
 
 export type Event =

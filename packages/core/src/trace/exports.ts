@@ -17,5 +17,8 @@ export type {
   WalletConnectPairingFailed,
   WalletConnectPairingStarted,
   WalletConnectProposalEvent,
+  WalletConnectRequestEvent,
+  WalletConnectResponseEvent,
+  WalletConnectSessionDisconnect,
   WalletConnectSessionDisconnected,
 } from './trace.js'

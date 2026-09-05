@@ -243,6 +243,12 @@ test-scoped relay client; `dispose()` is available for explicit `try/finally` cl
 reusable. Real-relay canaries require
 `VITE_WC_PROJECT_ID` and remain a release gate rather than a default unit test.
 
+`session.disconnect()` cancels local requests immediately. Failed disconnects stay
+inactive and can be retried; disposal remains terminal.
+
+WalletConnect response traces describe SDK calls, not relay delivery or dApp
+settlement. Verify peer-observed outcomes in end-to-end tests.
+
 ## Validation
 
 ```sh

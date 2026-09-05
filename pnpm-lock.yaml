@@ -67,8 +67,8 @@ catalogs:
       specifier: ^0.3.21
       version: 0.3.24
     qr:
-      specifier: ^0.6.0
-      version: 0.6.0
+      specifier: 0.7.0
+      version: 0.7.0
     react:
       specifier: ^19.2.8
       version: 19.2.8
@@ -227,7 +227,7 @@ importers:
         version: 7.0.0
       qr:
         specifier: 'catalog:'
-        version: 0.6.0
+        version: 0.7.0
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 'catalog:'
@@ -346,7 +346,7 @@ importers:
         version: 1.1.1
       qr:
         specifier: 'catalog:'
-        version: 0.6.0
+        version: 0.7.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -593,7 +593,7 @@ importers:
         version: 0.2.14
       qr:
         specifier: 'catalog:'
-        version: 0.6.0
+        version: 0.7.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -3560,8 +3560,8 @@ packages:
     resolution: {integrity: sha512-iQBvKj7MRKO+co+MY0IZpyLO+ezvttxsmV86WywrgPuAmgBkv0pytyi03wourniSoPgzffeBW6cBgIkpqcvjTg==}
     engines: {node: '>= 20.19.0'}
 
-  qr@0.6.0:
-    resolution: {integrity: sha512-P23VoX7SipHALdiIYG+D+LT/6n22dNKwV92FAb3d+Nlki/5WisSsfLt0UDFz2XEBtuwrECTznvu+chKKFCSYhA==}
+  qr@0.7.0:
+    resolution: {integrity: sha512-/VrrACmOAwZVipuRITwfEwOL5oAMEHH5PTmBWaGtlTom2Thxaa+rhmna4zU9PRN2uLw2wdccbkHOLGZb1Q9SdA==}
     engines: {node: '>= 20.19.0'}
 
   qrcode@1.5.3:
@@ -9188,7 +9188,7 @@ snapshots:
 
   qr@0.5.5: {}
 
-  qr@0.6.0: {}
+  qr@0.7.0: {}
 
   qrcode@1.5.3:
     dependencies:
