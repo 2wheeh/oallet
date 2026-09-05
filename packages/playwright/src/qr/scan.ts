@@ -35,11 +35,7 @@ export async function scan(
     try {
       const image = PNG.sync.read(bytes)
       const input = { data: image.data, height: image.height, width: image.width }
-      try {
-        return decodeQR(input)
-      } catch {
-        return decodeQR(input, { cropToSquare: true })
-      }
+      return decodeQR(input)
     } catch (error) {
       decodeCause = error
     }

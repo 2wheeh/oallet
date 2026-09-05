@@ -41,7 +41,7 @@ catalog:
   pngjs: 7.0.0
   prool: ^0.2.14
   publint: ^0.3.21
-  qr: ^0.6.0
+  qr: 0.7.0
   react: ^19.2.8
   react-dom: ^19.2.8
   tsdown: ^0.21.9
