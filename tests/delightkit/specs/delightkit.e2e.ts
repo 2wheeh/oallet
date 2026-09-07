@@ -25,6 +25,10 @@ const test = Fixture.extend(base, {
         }),
       ],
     }),
+  walletConnect: ({ oallet }) => {
+    if (!projectId) throw new Error('Missing VITE_WC_PROJECT_ID')
+    return Client.create({ environment: oallet, projectId, walletId })
+  },
 })
 
 test.skip(!projectId, 'Set VITE_WC_PROJECT_ID to run the real-relay canary')
@@ -32,14 +36,8 @@ test.skip(!projectId, 'Set VITE_WC_PROJECT_ID to run the real-relay canary')
 test('projects an approved WalletConnect account and signs through DelightKit', async ({
   oallet,
   page,
+  walletConnect,
 }) => {
-  if (!projectId) throw new Error('Missing VITE_WC_PROJECT_ID')
-  await using walletConnect = await Client.create({
-    environment: oallet,
-    projectId,
-    walletId,
-  })
-
   await page.goto('/')
   await page.getByRole('button', { name: 'Connect WalletConnect' }).click()
   const qr = page.getByTestId('walletconnect-qr')

@@ -1,5 +1,38 @@
 # @oallet/walletconnect
 
+## 0.5.0
+
+### Minor Changes
+
+- [#19](https://github.com/2wheeh/oallet/pull/19) [`d77b165`](https://github.com/2wheeh/oallet/commit/d77b165b56d6493998b96aaaf0c54a73d59f43ce) Thanks [@2wheeh](https://github.com/2wheeh)! - Clean up the WalletConnect timeout error and fixture resource interfaces.
+  
+  ```diff
+  -new PairingTimeoutError(message, stage, { cause })
+  +new PairingTimeoutError(message, { stage, cause })
+  
+  -type Fixture.extend.ManagedWalletConnect
+  +type Fixture.extend.WalletConnectResource
+  ```
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @oallet/core@0.5.0
+
+## 0.4.0
+
+### Minor Changes
+
+- [#17](https://github.com/2wheeh/oallet/pull/17) [`e562522`](https://github.com/2wheeh/oallet/commit/e5625227a93178ff279269faa3b9c7a48df09768) Thanks [@2wheeh](https://github.com/2wheeh)! - Make WalletConnect E2E failures easier to localize: distinguish unavailable QR targets
+  from undecodable pixels, report pairing start/proposal wait/cleanup stages with stable
+  errors and trace fields, and optionally manage the WalletConnect client through the
+  Playwright fixture without hiding proposal approval decisions.
+
+### Patch Changes
+
+- Updated dependencies [[`e562522`](https://github.com/2wheeh/oallet/commit/e5625227a93178ff279269faa3b9c7a48df09768)]:
+  - @oallet/core@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes

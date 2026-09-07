@@ -95,6 +95,7 @@ export type WalletConnectPairingStarted = WalletConnectConnectionBase & {
 
 export type WalletConnectPairingFailed = WalletConnectConnectionBase & {
   readonly reason: 'dispose' | 'error' | 'reset' | 'timeout'
+  readonly stage: 'cleanup' | 'pairing' | 'proposal'
   readonly type: 'walletconnect.pairing.failed'
 }
 

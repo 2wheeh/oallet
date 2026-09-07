@@ -7,8 +7,10 @@ test('exports WalletConnect namespaces', () => {
   expect(Object.keys(exports.Errors).sort()).toEqual([
     'ClientDisposedError',
     'InvalidUriError',
+    'PairingCleanupError',
     'PairingInProgressError',
     'PairingResetError',
+    'PairingStartError',
     'PairingTimeoutError',
     'ProjectIdRequiredError',
     'ProposalSettledError',

@@ -63,7 +63,7 @@ test.afterAll(async () => {
   await Promise.all(pools.map((pool) => pool.close()))
 })
 
-test('Wagmi pairs, signs, and disconnects through the real relay', async ({
+test('Wagmi reconnects with the same client after a wallet disconnect', async ({
   oallet,
   page,
 }) => {
@@ -104,6 +104,37 @@ test('Wagmi pairs, signs, and disconnects through the real relay', async ({
   ).resolves.toBe(Identity.alice.address)
 
   await session.disconnect()
+  await expect(page.getByTestId('status')).toHaveText('disconnected')
+
+  const firstQrSource = await qr.getAttribute('src')
+  await page.getByRole('button', { name: 'Connect WalletConnect' }).click()
+  await expect.poll(() => qr.getAttribute('src')).not.toBe(firstQrSource)
+
+  const reconnectProposal = await walletConnect.pair({
+    timeout: 60_000,
+    uri: await Qr.scan(qr),
+  })
+  const reconnectSession = await reconnectProposal.approve()
+
+  await expect(page.getByTestId('status')).toHaveText('connected')
+  await expect(page.getByTestId('account')).toHaveText(Identity.alice.address)
+
+  await page.getByTestId('message-input').fill('Hello after reconnect')
+  await page.getByTestId('sign-message').click()
+  const reconnectRequest = await oallet.wallet(walletId).requests.next('personal_sign')
+  await reconnectRequest.approve()
+  await expect
+    .poll(() => page.getByTestId('message-signature').textContent())
+    .not.toBe(signature)
+  const reconnectSignature = await readHex(page.getByTestId('message-signature'), 65)
+  await expect(
+    recoverMessageAddress({
+      message: 'Hello after reconnect',
+      signature: reconnectSignature,
+    }),
+  ).resolves.toBe(Identity.alice.address)
+
+  await reconnectSession.disconnect()
   await expect(page.getByTestId('status')).toHaveText('disconnected')
 })
 

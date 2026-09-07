@@ -37,6 +37,13 @@ const solanaProfile = SolanaProfile.keypair({
 const solanaEnvironment = Environment.create({
   wallets: [SolanaWallet.create({ profile: solanaProfile })],
 })
+const walletConnectResource = {
+  dispose: async () => undefined,
+} satisfies Fixture.extend.WalletConnectResource
+const pairingTimeout = new WalletConnectEntry.Errors.PairingTimeoutError(
+  'Pairing timed out',
+  { stage: 'pairing' },
+)
 
 const publicSurface = {
   clientCreate: Client.create,
@@ -46,10 +53,12 @@ const publicSurface = {
   evmTransport: EvmEntry.Transport,
   evmWallet: EvmEntry.Wallet,
   fixtureExtend: Fixture.extend,
+  pairingTimeout,
   playwrightFixture: PlaywrightEntry.Fixture,
   solanaEnvironment,
   solanaProfile: SolanaEntry.Profile,
   walletConnectClient: WalletConnectEntry.Client,
+  walletConnectResource,
 }
 
 void publicSurface
