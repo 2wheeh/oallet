@@ -11,6 +11,8 @@
     "@playwright/test": "1.62.1",
     "@types/node": "26.2.0",
     "oallet": "0.0.0",
+    "pngjs": "7.0.0",
+    "qr": "0.7.0",
     "typescript": "6.0.3",
     "viem": "2.55.19"
   }

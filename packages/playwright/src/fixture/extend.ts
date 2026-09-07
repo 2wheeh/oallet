@@ -159,6 +159,12 @@ function traceText(environment: FixtureEnvironment) {
           'connectionId' in event ? event.connectionId : undefined,
         ),
         traceField('method', 'method' in event ? event.method : undefined),
+        traceField('chainId', 'chainId' in event ? event.chainId : undefined),
+        traceField(
+          'rpcRequestId',
+          'rpcRequestId' in event ? event.rpcRequestId : undefined,
+        ),
+        traceField('outcome', 'outcome' in event ? event.outcome : undefined),
         traceField('stage', 'stage' in event ? event.stage : undefined),
         traceField('reason', 'reason' in event ? event.reason : undefined),
       ]

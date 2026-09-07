@@ -29,8 +29,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test:e2e": "vitest run src/browser/attach.test.ts",
-    "test:unit": "vitest run --exclude src/browser/attach.test.ts",
+    "test:e2e": "vitest run src/browser/attach.test.ts src/qr/scan.browser.test.ts",
+    "test:unit": "vitest run --exclude src/browser/attach.test.ts --exclude src/qr/scan.browser.test.ts",
     "test:build": "publint --strict && attw --pack . --profile esm-only",
     "typecheck": "tsc --noEmit"
   },

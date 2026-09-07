@@ -11,6 +11,46 @@ test('decodes a visible QR screenshot', async () => {
   await expect(Qr.scan({ screenshot: async () => screenshot })).resolves.toBe(value)
 })
 
+test('decodes a QR inside a wider screenshot', async () => {
+  const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
+  const qr = PNG.sync.read(renderQr(value))
+  const image = new PNG({ width: qr.width + 200, height: qr.height })
+  image.data.fill(255)
+  for (let y = 0; y < qr.height; y++) {
+    qr.data.copy(
+      image.data,
+      (y * image.width + 100) * 4,
+      y * qr.width * 4,
+      (y + 1) * qr.width * 4,
+    )
+  }
+
+  await expect(
+    Qr.scan({ screenshot: async () => PNG.sync.write(image) }, { timeout: 0 }),
+  ).resolves.toBe(value)
+})
+
+test('decodes an inverted QR screenshot', async () => {
+  const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
+  const image = PNG.sync.read(renderQr(value))
+  for (let offset = 0; offset < image.data.length; offset++) {
+    if (offset % 4 !== 3) image.data[offset] = 255 - (image.data[offset] ?? 0)
+  }
+
+  await expect(
+    Qr.scan({ screenshot: async () => PNG.sync.write(image) }, { timeout: 0 }),
+  ).resolves.toBe(value)
+})
+
+test('reports a decode error for a valid image without a QR', async () => {
+  const image = new PNG({ width: 100, height: 100 })
+  image.data.fill(255)
+
+  await expect(
+    Qr.scan({ screenshot: async () => PNG.sync.write(image) }, { timeout: 0 }),
+  ).rejects.toMatchObject({ code: 'OALLET_PLAYWRIGHT_QR_DECODE_FAILED' })
+})
+
 test('retries while a QR screenshot is not ready to decode', async () => {
   const value = 'wc:example@2?relay-protocol=irn&symKey=secret'
   const screenshot = renderQr(value)
