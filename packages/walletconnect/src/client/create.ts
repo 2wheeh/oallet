@@ -69,8 +69,9 @@ type SessionState = {
   chainId?: string | undefined
   connected: boolean
   readonly connectionId: string
+  confirmDisconnect?: (() => void) | undefined
   disconnecting?: Promise<void> | undefined
-  disconnected: boolean
+  status: 'active' | 'disconnecting' | 'disconnected' | 'failed'
   readonly requests: AbortController
   readonly session: SessionStruct
 }
@@ -179,16 +180,9 @@ function createWithResource(options: create.Options, resource: Resource): Instan
   }
   const onSessionDelete = (event: { topic: string }) => {
     const state = sessions.get(event.topic)
-    if (!state || state.disconnected) return
-    state.disconnected = true
+    if (!state) return
     state.requests.abort()
-    sessions.delete(event.topic)
-    trace({
-      connectionId: state.connectionId,
-      reason: 'peer',
-      type: 'walletconnect.session.disconnected',
-      walletId,
-    })
+    finishDisconnect(state, 'peer')
   }
   peer.on('session_request', onSessionRequest)
   peer.on('session_delete', onSessionDelete)
@@ -386,7 +380,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     const sessionState: SessionState = {
       connected: false,
       connectionId: state.connectionId,
-      disconnected: false,
+      status: 'active',
       requests: new AbortController(),
       session,
     }
@@ -445,30 +439,71 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       namespaces: state.session.namespaces,
       disconnect() {
         assertActive()
-        state.disconnecting ??= disconnectSession(state, 'session')
-        return state.disconnecting
+        return disconnectSession(state, 'session')
       },
     }
   }
 
-  async function disconnectSession(
+  function finishDisconnect(
     state: SessionState,
-    reason: 'dispose' | 'reset' | 'session',
+    reason: 'dispose' | 'peer' | 'reset' | 'session',
   ) {
-    if (state.disconnected) return
-    state.disconnected = true
-    state.requests.abort()
-    sessions.delete(state.session.topic)
+    if (state.status === 'disconnected') return
+    state.status = 'disconnected'
+    state.confirmDisconnect?.()
+    state.confirmDisconnect = undefined
+    if (sessions.get(state.session.topic) === state) sessions.delete(state.session.topic)
     trace({
       connectionId: state.connectionId,
       reason,
       type: 'walletconnect.session.disconnected',
       walletId,
     })
-    await peer.disconnectSession({
-      reason: getSdkError('USER_DISCONNECTED'),
-      topic: state.session.topic,
+  }
+
+  function disconnectSession(
+    state: SessionState,
+    reason: 'dispose' | 'reset' | 'session',
+  ): Promise<void> {
+    if (state.disconnecting) return state.disconnecting
+    if (state.status === 'disconnected') return Promise.resolve()
+    state.status = 'disconnecting'
+    state.requests.abort()
+    trace({
+      connectionId: state.connectionId,
+      reason,
+      type: 'walletconnect.session.disconnecting',
+      walletId,
     })
+    const confirmed = new Promise<void>((resolve) => {
+      state.confirmDisconnect = resolve
+    })
+    const attempt = Promise.resolve()
+      .then(() =>
+        peer.disconnectSession({
+          reason: getSdkError('USER_DISCONNECTED'),
+          topic: state.session.topic,
+        }),
+      )
+      .then(
+        () => finishDisconnect(state, reason),
+        (error: unknown) => {
+          // A peer delete may confirm termination while our relay call is pending.
+          if (state.status === 'disconnected') return
+          state.status = 'failed'
+          state.confirmDisconnect = undefined
+          state.disconnecting = undefined
+          trace({
+            connectionId: state.connectionId,
+            reason,
+            type: 'walletconnect.session.disconnectFailed',
+            walletId,
+          })
+          throw error
+        },
+      )
+    state.disconnecting = Promise.race([confirmed, attempt])
+    return state.disconnecting
   }
 
   async function cleanup(
@@ -477,6 +512,8 @@ function createWithResource(options: create.Options, resource: Resource): Instan
   ): Promise<unknown[]> {
     const errors: unknown[] = []
     const tasks: Promise<unknown>[] = []
+    const attemptedSessions = new Set<SessionState>()
+    let peerCleanupActive = true
     const attempt = activePairing
     if (attempt) {
       activePairing = undefined
@@ -508,15 +545,25 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     }
     tasks.push(...operations)
     for (const state of sessions.values()) {
-      state.disconnecting ??= disconnectSession(state, reason)
-      tasks.push(state.disconnecting)
+      attemptedSessions.add(state)
+      // Waiting for an existing attempt does not consume cleanup's own attempt.
+      const pending = state.disconnecting
+      tasks.push(
+        pending
+          ? pending.catch((error: unknown) => {
+              if (!peerCleanupActive) throw error
+              return disconnectSession(state, reason)
+            })
+          : disconnectSession(state, reason),
+      )
     }
     const peerCleanup = async () => {
       await collectSettled(tasks, errors)
+      if (!peerCleanupActive) return
       const sessionTasks: Promise<unknown>[] = []
       for (const state of sessions.values()) {
-        state.disconnecting ??= disconnectSession(state, reason)
-        sessionTasks.push(state.disconnecting)
+        if (attemptedSessions.has(state)) continue
+        sessionTasks.push(disconnectSession(state, reason))
       }
       await collectSettled(sessionTasks, errors)
     }
@@ -529,6 +576,9 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       )
     } catch (error) {
       errors.push(error)
+    } finally {
+      // A timeout does not cancel the SDK calls being awaited above.
+      peerCleanupActive = false
     }
     if (includeResource) {
       const remaining = Math.max(0, cleanupBudget - (Date.now() - startedAt))
@@ -549,8 +599,13 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     disposed = true
     unsubscribeProviderEvents()
     peer.off('session_request', onSessionRequest)
-    peer.off('session_delete', onSessionDelete)
-    const errors = await cleanup('dispose', true)
+    let errors: unknown[]
+    try {
+      // Peer deletion can complete a disconnect during the bounded cleanup window.
+      errors = await cleanup('dispose', true)
+    } finally {
+      peer.off('session_delete', onSessionDelete)
+    }
     trace({ type: 'walletconnect.client.disposed', walletId })
     throwCollected(errors, 'WalletConnect client disposal encountered cleanup failures')
   }
@@ -567,7 +622,19 @@ function createWithResource(options: create.Options, resource: Resource): Instan
       })
       return
     }
+    const correlation = {
+      chainId: event.params.chainId,
+      connectionId: state.connectionId,
+      method: event.params.request.method,
+      rpcRequestId: event.id,
+      walletId,
+    }
+    trace({ ...correlation, type: 'walletconnect.request.received' })
+    let response:
+      | ReturnType<typeof formatJsonRpcResult>
+      | ReturnType<typeof formatJsonRpcError>
     try {
+      if (state.status !== 'active') throw getSdkError('USER_DISCONNECTED')
       await ensureConnected(state)
       Json.assert(event.params.request.params)
       const result = await environment.dispatch({
@@ -578,16 +645,27 @@ function createWithResource(options: create.Options, resource: Resource): Instan
         signal: state.requests.signal,
         walletId,
       })
-      await peer.respondSessionRequest({
-        response: formatJsonRpcResult(event.id, result),
-        topic: event.topic,
-      })
+      response = formatJsonRpcResult(event.id, result)
     } catch (error) {
-      if (state.disconnected || state.requests.signal.aborted) return
+      response = formatSessionRequestError(event.id, error)
+    }
+    // Abort can race with an already generated result. Never send that stale result.
+    if (state.requests.signal.aborted) {
+      trace({ ...correlation, type: 'walletconnect.request.cancelled' })
+      if (state.status === 'disconnected') return
+      response = formatJsonRpcError(event.id, getSdkError('USER_DISCONNECTED'))
+    }
+    const outcome = 'error' in response ? ('error' as const) : ('result' as const)
+    trace({ ...correlation, outcome, type: 'walletconnect.response.started' })
+    try {
       await peer.respondSessionRequest({
-        response: formatSessionRequestError(event.id, error),
+        response,
         topic: event.topic,
       })
+      trace({ ...correlation, outcome, type: 'walletconnect.response.completed' })
+    } catch {
+      // An SDK call failure is not a wallet rejection. Do not attempt a second response.
+      trace({ ...correlation, outcome, type: 'walletconnect.response.failed' })
     }
   }
 
@@ -597,7 +675,7 @@ function createWithResource(options: create.Options, resource: Resource): Instan
     const state = [...sessions.values()].find(
       (candidate) => sessionOrigin(candidate.connectionId) === event.origin,
     )
-    if (!state?.connected || state.disconnected) return
+    if (!state?.connected || state.status !== 'active') return
     const namespace = state.session.namespaces.eip155
     if (!namespace?.events.includes(event.name)) return
 

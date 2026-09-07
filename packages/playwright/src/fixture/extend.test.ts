@@ -153,6 +153,15 @@ test('includes WalletConnect correlation and failure stage in text traces', asyn
     type: 'walletconnect.pairing.failed',
     walletId: 'wallet',
   })
+  environment[Environment.controller].traceWalletConnect({
+    chainId: 'eip155:1',
+    connectionId: 'connection-1',
+    method: 'personal_sign',
+    outcome: 'error',
+    rpcRequestId: 42,
+    type: 'walletconnect.response.failed',
+    walletId: 'wallet',
+  })
   extend(base, { environment: () => environment })
   const [run] = fixture as readonly [
     (
@@ -175,6 +184,9 @@ test('includes WalletConnect correlation and failure stage in text traces', asyn
   )
   expect(attachments.get('oallet-trace.txt')).toContain(
     'walletconnect.pairing.failed walletId=wallet connectionId=connection-1 stage=proposal reason=timeout',
+  )
+  expect(attachments.get('oallet-trace.txt')).toContain(
+    'walletconnect.response.failed walletId=wallet connectionId=connection-1 method=personal_sign chainId=eip155:1 rpcRequestId=42 outcome=error',
   )
 })
 
