@@ -1,5 +1,12 @@
 # @oallet/evm
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`ab03d94`](https://github.com/2wheeh/oallet/commit/ab03d94a59e1b8bff778ebf50f91779873c26b39)]:
+  - @oallet/core@0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

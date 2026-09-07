@@ -1,5 +1,21 @@
 # @oallet/walletconnect
 
+## 0.6.0
+
+### Patch Changes
+
+- [#21](https://github.com/2wheeh/oallet/pull/21) [`ab03d94`](https://github.com/2wheeh/oallet/commit/ab03d94a59e1b8bff778ebf50f91779873c26b39) Thanks [@2wheeh](https://github.com/2wheeh)! - Retry failed WalletConnect disconnects and add correlated request, response, and disconnect traces.
+  
+  ```diff
+   export type {
+  +  WalletConnectRequestEvent,
+  +  WalletConnectResponseEvent,
+  +  WalletConnectSessionDisconnect,
+   } from './trace.js'
+  ```
+- Updated dependencies [[`ab03d94`](https://github.com/2wheeh/oallet/commit/ab03d94a59e1b8bff778ebf50f91779873c26b39)]:
+  - @oallet/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
