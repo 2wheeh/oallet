@@ -3,6 +3,7 @@ export {
   ConnectionNotFoundError,
   InvalidParamsError,
   InvalidProfileError,
+  SigningError,
   StaleConnectionError,
   UnauthorizedError,
   UnsupportedMethodError,

@@ -1,7 +1,7 @@
 import { Profile } from '@oallet/core'
 
 import { InvalidProfileError } from '../errors/errors.js'
-import type * as Identity from '../identity/identity.js'
+import * as Identity from '../identity/identity.js'
 
 export type Chain =
   | 'solana:devnet'
@@ -27,6 +27,7 @@ export function keypair(options: keypair.Options): Definition {
   if (options.accounts.length === 0) {
     throw new InvalidProfileError('At least one account is required')
   }
+  for (const account of options.accounts) Identity.assertPreset(account)
   if (
     new Set(options.accounts.map((account) => account.address)).size !==
     options.accounts.length
