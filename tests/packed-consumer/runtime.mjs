@@ -1,11 +1,14 @@
 import { strictEqual } from 'node:assert'
 import { createHash } from 'node:crypto'
-import { Environment } from '@oallet/core'
+import { Identity as CoreIdentity, Environment } from '@oallet/core'
 import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
 import { Fixture, Qr } from '@oallet/playwright'
 import { Profile as SolanaProfile } from '@oallet/solana'
 import { Client } from '@oallet/walletconnect'
-import { Environment as BundledEnvironment } from 'oallet/core'
+import {
+  Environment as BundledEnvironment,
+  Identity as BundledIdentity,
+} from 'oallet/core'
 import {
   Profile as BundledProfile,
   Transport as BundledTransport,
@@ -20,6 +23,7 @@ import { anvil } from 'viem/chains'
 import pkg from './node_modules/@oallet/core/package.json' with { type: 'json' }
 
 if (BundledEnvironment !== Environment) throw new Error('core entrypoints diverged')
+if (BundledIdentity !== CoreIdentity) throw new Error('identity entrypoints diverged')
 if (BundledProfile !== Profile) throw new Error('EVM entrypoints diverged')
 if (BundledTransport !== Transport) throw new Error('EVM transport entrypoints diverged')
 if (BundledWallet !== Wallet) throw new Error('EVM wallet entrypoints diverged')

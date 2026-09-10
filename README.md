@@ -51,6 +51,30 @@ const test = OalletPlaywright.Fixture.extend(base, { /* ... */ })
 await using client = await WalletConnect.Client.create({ /* ... */ })
 ```
 
+## Test identities
+
+EVM and Solana share the public Anvil mnemonic
+`test test test test test test test test test test test junk`, an empty BIP39
+passphrase, and the identity order Alice, Bob, Charlie, Dave, Eve, Frank, Grace,
+Heidi, Ivan, Judy. `Identity` from `oallet/core` exposes this `mnemonic` and `names`
+list for consumer test infrastructure.
+
+| Adapter | Derivation path for identity index `i` | Key type |
+| --- | --- | --- |
+| EVM | `m/44'/60'/0'/0/i` | secp256k1 |
+| Solana | `m/44'/501'/i'/0'` | Ed25519 via SLIP-0010 |
+
+For example, `Evm.Identity.alice` and `Solana.Identity.alice` both use index `0`.
+They are separate keys derived from the same mnemonic, not convertible addresses.
+The EVM addresses match Anvil's default accounts. The Solana path follows the
+[Solana Cookbook](https://solana.com/developers/cookbook/wallets/restore-from-mnemonic)
+and is also [supported by Phantom](https://help.phantom.com/articles/12988493966227).
+Oallet explicitly uses this convention; Solana wallets also support other paths.
+
+Solana presets replace the earlier name-hash preview addresses. Fund accounts using
+the current `Identity.*.address` values and recreate snapshots made with the preview
+profiles. Oallet does not fund these accounts; consumers provide that infrastructure.
+
 ## EVM and Playwright
 
 ```ts

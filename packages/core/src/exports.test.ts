@@ -6,6 +6,7 @@ test('exports the exact core namespaces', () => {
   expect(Object.keys(root).sort()).toEqual([
     'Environment',
     'Errors',
+    'Identity',
     'Json',
     'Profile',
     'Request',
