@@ -107,16 +107,18 @@ export function create(options: create.Options): Instance {
             value: accountViews(connection.accounts, profile.data.chains),
           }
         }
+        const accounts =
+          connection.accounts.length > 0 ? connection.accounts : profile.data.accounts
         return {
           type: 'interactive',
           async approve() {
             if (!connection.connected) await connection.handle.reconnect()
-            await connection.handle.setAccounts(profile.data.accounts)
+            await connection.handle.setAccounts(accounts)
             return accountViews(connection.accounts, profile.data.chains)
           },
           controllerResult: () => connection.handle,
           data: {
-            accounts: profile.data.accounts.map((account) => account.address),
+            accounts: accounts.map((account) => account.address),
             chains: profile.data.chains,
             type: 'connect',
           },
@@ -142,9 +144,11 @@ export function create(options: create.Options): Instance {
                 if (!signer) {
                   throw new UnauthorizedError(`Account ${account.address} has no signer`)
                 }
-                const [signatures] = await signer.signMessages([
-                  createSignableMessage(Uint8Array.from(message)),
-                ])
+                const [signatures] = await signer
+                  .signMessages([createSignableMessage(Uint8Array.from(message))])
+                  .catch((cause: unknown) => {
+                    throw new SigningError('Failed to sign Solana message', { cause })
+                  })
                 const signature = signatures?.[signer.address]
                 if (!signature) {
                   throw new SigningError('Solana signer returned no signature')
@@ -169,22 +173,36 @@ export function create(options: create.Options): Instance {
         const accounts = requests.map(({ address }) =>
           authorizedAccount(profile, connection, address),
         )
+        const transactions = requests.map(({ transaction }, index) => {
+          const decoded = decodeTransaction(transaction)
+          const account = accounts[index] as Identity.Preset
+          if (!Object.hasOwn(decoded.signatures, account.address)) {
+            throw new InvalidParamsError(
+              `Account ${account.address} is not a required transaction signer`,
+            )
+          }
+          return decoded
+        })
         return {
           type: 'interactive',
           async approve() {
             return Promise.all(
-              requests.map(async ({ transaction }, index) => {
+              transactions.map(async (transaction, index) => {
                 const account = accounts[index] as Identity.Preset
                 const signer = await signerByAddress.get(account.address)
                 if (!signer) {
                   throw new UnauthorizedError(`Account ${account.address} has no signer`)
                 }
-                const decoded = getTransactionDecoder().decode(
-                  Uint8Array.from(transaction),
-                )
-                const signed = await partiallySignTransaction([signer.keyPair], decoded)
-                return {
-                  signedTransaction: [...getTransactionEncoder().encode(signed)],
+                try {
+                  const signed = await partiallySignTransaction(
+                    [signer.keyPair],
+                    transaction,
+                  )
+                  return {
+                    signedTransaction: [...getTransactionEncoder().encode(signed)],
+                  }
+                } catch (cause) {
+                  throw new SigningError('Failed to sign Solana transaction', { cause })
                 }
               }),
             )
@@ -463,6 +481,14 @@ function transactionRequests(
       transaction: input.transaction as number[],
     }
   })
+}
+
+function decodeTransaction(transaction: readonly number[]) {
+  try {
+    return getTransactionDecoder().decode(Uint8Array.from(transaction))
+  } catch (cause) {
+    throw new InvalidParamsError('Invalid Solana transaction encoding', { cause })
+  }
 }
 
 function authorizedAccount(

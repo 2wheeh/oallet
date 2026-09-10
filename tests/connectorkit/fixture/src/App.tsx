@@ -31,7 +31,7 @@ function Consumer() {
   const { disconnect, isDisconnecting } = useDisconnectWallet()
   const { ready: signerReady, signer } = useTransactionSigner()
   const wallet = useWallet()
-  const [messageSignatureLength, setMessageSignatureLength] = useState(0)
+  const [messageSignature, setMessageSignature] = useState('')
   const [transactionSignatureLength, setTransactionSignatureLength] = useState(0)
   const oallet = connectors.find(
     (connector) => connector.name === 'Oallet ConnectorKit Wallet',
@@ -58,13 +58,13 @@ function Consumer() {
           const signature = await signer?.signMessage?.(
             new TextEncoder().encode('Oallet ConnectorKit fixture'),
           )
-          setMessageSignatureLength(signature?.length ?? 0)
+          setMessageSignature(signature ? [...signature].join(',') : '')
         }}
         type="button"
       >
         Sign message
       </button>
-      <output data-testid="message-signature">{messageSignatureLength}</output>
+      <output data-testid="message-signature">{messageSignature}</output>
       <button
         disabled={!signerReady || !signer || !wallet.account}
         onClick={async () => {

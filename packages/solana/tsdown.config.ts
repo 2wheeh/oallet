@@ -1,3 +1,4 @@
 import { defineLibrary } from '@oallet/config/tsdown'
+import { defineConfig } from 'tsdown'
 
-export default defineLibrary()
+export default defineConfig(defineLibrary())
