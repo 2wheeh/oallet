@@ -35,7 +35,9 @@
   },
   "dependencies": {
     "@oallet/core": "workspace:^",
-    "@solana/kit": "catalog:"
+    "@scure/bip39": "catalog:",
+    "@solana/kit": "catalog:",
+    "micro-key-producer": "catalog:"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

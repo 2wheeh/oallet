@@ -25,6 +25,7 @@ peerDependencyRules:
     - react-native
 
 catalog:
+  '@scure/bip39': 2.4.0
   '@solana/connector': 0.2.6
   '@solana/kit': ^7.1.1
   '@solana/web3.js': 1.98.4
@@ -46,6 +47,7 @@ catalog:
   '@walletconnect/sign-client': 2.23.10
   '@walletconnect/utils': 2.23.10
   pngjs: 7.0.0
+  micro-key-producer: 0.10.2
   prool: ^0.2.14
   publint: ^0.3.21
   qr: 0.7.0

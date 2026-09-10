@@ -1,4 +1,4 @@
-import { Environment } from '@oallet/core'
+import { Identity as CoreIdentity, Environment } from '@oallet/core'
 import { Identity, Transport, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
 import {
@@ -48,13 +48,15 @@ const solanaEnvironment = Environment.create({
 const publicSurface = {
   clientCreate: Client.create,
   coreEnvironment: CoreEntry.Environment,
+  coreIdentity: CoreEntry.Identity,
   environment,
   evmProfile: EvmEntry.Profile,
   evmTransport: EvmEntry.Transport,
   evmWallet: EvmEntry.Wallet,
   fixtureExtend: Fixture.extend,
-  playwrightFixture: PlaywrightEntry.Fixture,
+  mnemonic: CoreIdentity.mnemonic,
   pairingTimeout,
+  playwrightFixture: PlaywrightEntry.Fixture,
   solanaEnvironment,
   solanaProfile: SolanaEntry.Profile,
   walletConnectClient: WalletConnectEntry.Client,

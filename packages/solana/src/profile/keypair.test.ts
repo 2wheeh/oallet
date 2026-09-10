@@ -16,13 +16,13 @@ test('defines a serializable Solana keypair profile', () => {
     accounts: [Identity.alice, Identity.bob],
     chains: ['solana:localnet', 'solana:devnet'],
   })
-  expect(JSON.stringify(profile)).not.toContain('oallet:solana:alice')
+  expect(JSON.stringify(profile)).not.toContain('test test')
 })
 
 test('exposes deterministic public identity presets', () => {
   expect(Identity.presets).toHaveLength(10)
-  expect(Identity.alice.address).toBe('6G4TD6tNaQ9byuykMu6ninArmaNBmwpADDp8tUaMcfg2')
-  expect(Identity.bob.address).toBe('HjK7iKXDHNuHMUNjYuZ6Se1ER63nxRrFb1hGH3S6oKpz')
+  expect(Identity.alice.address).toBe('oeYf6KAJkLYhBuR8CiGc6L4D4Xtfepr85fuDgA9kq96')
+  expect(Identity.bob.address).toBe('AqynRZwvVqUPRwRJXvm6odUb3t93fDjnWe3p6BeuUFxD')
 })
 
 test('rejects an invalid preset before creating its asynchronous signer', () => {

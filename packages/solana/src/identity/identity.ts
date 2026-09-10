@@ -1,8 +1,12 @@
+import { Identity } from '@oallet/core'
+import { mnemonicToSeedSync } from '@scure/bip39'
 import {
   type Address,
   createKeyPairSignerFromPrivateKeyBytes,
+  getAddressDecoder,
   type KeyPairSigner,
 } from '@solana/kit'
+import { HDKey } from 'micro-key-producer/slip10.js'
 
 import { InvalidProfileError } from '../errors/errors.js'
 
@@ -13,22 +17,20 @@ export type Preset = {
   readonly source: 'oallet'
 }
 
-const definitions = [
-  ['alice', '6G4TD6tNaQ9byuykMu6ninArmaNBmwpADDp8tUaMcfg2'],
-  ['bob', 'HjK7iKXDHNuHMUNjYuZ6Se1ER63nxRrFb1hGH3S6oKpz'],
-  ['charlie', '3hpLz9b73ynqqFbpyMYDurG4ZE1Yyao8p7VT12tE3PfS'],
-  ['dave', '5XvZRBMjNYkpBvNBRLmtni7kFa7suDx3134NkcWEP8wH'],
-  ['eve', 'BqmictS97otfaTjaw3UiBc96XG59pPLqLiqoW3nrV8DM'],
-  ['frank', '3nx3CRQHzJNXz84j8Vm6AomdASQhNphdCqPencEeA6eX'],
-  ['grace', 'EH8bgnSyyUxBUHxGv8BwCLfDGs6GAWctDuzgRsAZigHG'],
-  ['heidi', 'CtdL4a3b41PALCmmU8UZzKKNiPsSZwJupgoLaiqwMzrV'],
-  ['ivan', 'E3zdpmtBMHAGFpaQJJRSzdLoBGASL55bAfMtBPz9YEZM'],
-  ['judy', '8mwenSmnxtZiFxivEQeVhHg4x2McfwUr6BpG5M2fKU7X'],
-] as const
+const master = HDKey.fromMasterSeed(mnemonicToSeedSync(Identity.mnemonic, ''))
+
+function derive(index: number) {
+  return master.derive(`m/44'/501'/${index}'/0'`)
+}
 
 export const presets: readonly Preset[] = Object.freeze(
-  definitions.map(([id, address], index) =>
-    Object.freeze({ address: address as Address, id, index, source: 'oallet' as const }),
+  Identity.names.map((id, index) =>
+    Object.freeze({
+      address: getAddressDecoder().decode(derive(index).publicKeyRaw),
+      id,
+      index,
+      source: 'oallet' as const,
+    }),
   ),
 )
 
@@ -55,11 +57,5 @@ export function assertPreset(preset: Preset): void {
 
 export async function account(preset: Preset): Promise<KeyPairSigner> {
   assertPreset(preset)
-  const seed = new Uint8Array(
-    await crypto.subtle.digest(
-      'SHA-256',
-      new TextEncoder().encode(`oallet:solana:${preset.id}`),
-    ),
-  )
-  return createKeyPairSignerFromPrivateKeyBytes(seed)
+  return createKeyPairSignerFromPrivateKeyBytes(derive(preset.index).privateKey)
 }
