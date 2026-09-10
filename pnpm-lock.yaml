@@ -376,6 +376,9 @@ importers:
       '@oallet/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@solana/kit':
+        specifier: 'catalog:'
+        version: 7.1.1(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@5.0.10)
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.18

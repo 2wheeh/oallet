@@ -9,7 +9,7 @@ pnpm changeset # write an entry here and commit it with the change
 
 Write summaries for package consumers. Entries remain here until they reach
 `main`, where the release workflow opens a version PR. Merging that PR publishes
-all five packages to npm with the `latest` tag.
+all six packages to npm with the `latest` tag.
 
 `release.yaml` is prepared for npm trusted publishing. Configure it as the
 trusted publisher for each package after its first publish. Initially unpublished
