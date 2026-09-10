@@ -512,7 +512,7 @@ function browserBootstrap(profilesJson: string) {
             async signTransaction(
               ...inputs: readonly {
                 readonly account: StandardAccount
-                readonly chain: string
+                readonly chain?: string
                 readonly transaction: Uint8Array
               }[]
             ) {
@@ -520,7 +520,7 @@ function browserBootstrap(profilesJson: string) {
                 'solana:signTransaction',
                 inputs.map((input) => ({
                   address: input.account.address,
-                  chain: input.chain,
+                  ...(input.chain === undefined ? {} : { chain: input.chain }),
                   transaction: [...input.transaction],
                 })),
               )
@@ -644,7 +644,7 @@ function browserBootstrap(profilesJson: string) {
         walletId: profile.id,
       }).then((state) => {
         if (state && typeof state === 'object' && 'accounts' in state) {
-          accounts = toAccounts((state as { accounts: unknown }).accounts)
+          updateAccounts((state as { accounts: unknown }).accounts)
         }
       })
       announce()

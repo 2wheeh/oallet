@@ -24,3 +24,14 @@ test('exposes deterministic public identity presets', () => {
   expect(Identity.alice.address).toBe('6G4TD6tNaQ9byuykMu6ninArmaNBmwpADDp8tUaMcfg2')
   expect(Identity.bob.address).toBe('HjK7iKXDHNuHMUNjYuZ6Se1ER63nxRrFb1hGH3S6oKpz')
 })
+
+test('rejects an invalid preset before creating its asynchronous signer', () => {
+  expect(() =>
+    Profile.keypair({
+      accounts: [{ ...Identity.alice, address: Identity.bob.address }],
+      chains: ['solana:localnet'],
+      id: 'wallet',
+      name: 'Wallet',
+    }),
+  ).toThrowError(expect.objectContaining({ code: 'OALLET_SOLANA_PROFILE_INVALID' }))
+})

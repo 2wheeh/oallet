@@ -4,6 +4,8 @@ import {
   type KeyPairSigner,
 } from '@solana/kit'
 
+import { InvalidProfileError } from '../errors/errors.js'
+
 export type Preset = {
   readonly address: Address
   readonly id: string
@@ -44,11 +46,15 @@ export const [alice, bob, charlie, dave, eve, frank, grace, heidi, ivan, judy] =
     Preset,
   ]
 
-export async function account(preset: Preset): Promise<KeyPairSigner> {
+export function assertPreset(preset: Preset): void {
   const expected = presets[preset.index]
   if (!expected || expected.id !== preset.id || expected.address !== preset.address) {
-    throw new Error(`Unknown Solana identity preset ${preset.id}`)
+    throw new InvalidProfileError(`Unknown Solana identity preset ${preset.id}`)
   }
+}
+
+export async function account(preset: Preset): Promise<KeyPairSigner> {
+  assertPreset(preset)
   const seed = new Uint8Array(
     await crypto.subtle.digest(
       'SHA-256',

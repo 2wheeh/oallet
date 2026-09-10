@@ -17,6 +17,11 @@ export class InvalidParamsError extends Errors.BaseError {
   readonly providerCode = -32602
 }
 
+export class SigningError extends Errors.BaseError {
+  override readonly code = 'OALLET_SOLANA_SIGNING_FAILED'
+  override name = 'Solana.SigningError'
+}
+
 export class UnsupportedMethodError extends Errors.BaseError {
   override readonly code = 'OALLET_SOLANA_UNSUPPORTED_METHOD'
   override name = 'Solana.UnsupportedMethodError'

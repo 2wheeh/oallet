@@ -13,6 +13,7 @@ import {
   ConnectionNotFoundError,
   InvalidParamsError,
   InvalidProfileError,
+  SigningError,
   StaleConnectionError,
   UnauthorizedError,
   UnsupportedMethodError,
@@ -128,22 +129,9 @@ export function create(options: create.Options): Instance {
       if (input.method === 'solana:signMessage') {
         ensureConnected(connection)
         const requests = messageRequests(input.params)
-        const accounts = requests.map(({ address }) => {
-          const account = profile.data.accounts.find(
-            (candidate) => candidate.address === address,
-          )
-          if (!account) {
-            throw new UnauthorizedError(
-              `Account ${address} is not exposed by this wallet`,
-            )
-          }
-          if (!connection.accounts.includes(account)) {
-            throw new UnauthorizedError(
-              `Account ${address} is not authorized for this origin`,
-            )
-          }
-          return account
-        })
+        const accounts = requests.map(({ address }) =>
+          authorizedAccount(profile, connection, address),
+        )
         return {
           type: 'interactive',
           async approve() {
@@ -158,7 +146,9 @@ export function create(options: create.Options): Instance {
                   createSignableMessage(Uint8Array.from(message)),
                 ])
                 const signature = signatures?.[signer.address]
-                if (!signature) throw new Error('Solana signer returned no signature')
+                if (!signature) {
+                  throw new SigningError('Solana signer returned no signature')
+                }
                 return {
                   signature: [...signature],
                   signedMessage: message,
@@ -176,22 +166,9 @@ export function create(options: create.Options): Instance {
       if (input.method === 'solana:signTransaction') {
         ensureConnected(connection)
         const requests = transactionRequests(input.params, profile.data.chains)
-        const accounts = requests.map(({ address }) => {
-          const account = profile.data.accounts.find(
-            (candidate) => candidate.address === address,
-          )
-          if (!account) {
-            throw new UnauthorizedError(
-              `Account ${address} is not exposed by this wallet`,
-            )
-          }
-          if (!connection.accounts.includes(account)) {
-            throw new UnauthorizedError(
-              `Account ${address} is not authorized for this origin`,
-            )
-          }
-          return account
-        })
+        const accounts = requests.map(({ address }) =>
+          authorizedAccount(profile, connection, address),
+        )
         return {
           type: 'interactive',
           async approve() {
@@ -214,7 +191,7 @@ export function create(options: create.Options): Instance {
           },
           data: {
             accounts: accounts.map((account) => account.address),
-            chains: requests.map(({ chain }) => chain),
+            chains: requests.map(({ chain }) => chain ?? null),
             transactions: requests.map(({ transaction }) => transaction),
             type: 'signTransaction',
           },
@@ -469,8 +446,9 @@ function transactionRequests(
     const input = value as Record<string, Json.Value>
     if (
       typeof input.address !== 'string' ||
-      typeof input.chain !== 'string' ||
-      !supportedChains.includes(input.chain as Profile.Chain) ||
+      (input.chain !== undefined &&
+        (typeof input.chain !== 'string' ||
+          !supportedChains.includes(input.chain as Profile.Chain))) ||
       !Array.isArray(input.transaction) ||
       !input.transaction.every(
         (byte) =>
@@ -481,10 +459,25 @@ function transactionRequests(
     }
     return {
       address: input.address,
-      chain: input.chain as Profile.Chain,
+      chain: input.chain as Profile.Chain | undefined,
       transaction: input.transaction as number[],
     }
   })
+}
+
+function authorizedAccount(
+  profile: Profile.Definition,
+  connection: ConnectionState,
+  address: string,
+) {
+  const account = profile.data.accounts.find((candidate) => candidate.address === address)
+  if (!account) {
+    throw new UnauthorizedError(`Account ${address} is not exposed by this wallet`)
+  }
+  if (!connection.accounts.includes(account)) {
+    throw new UnauthorizedError(`Account ${address} is not authorized for this origin`)
+  }
+  return account
 }
 
 function ensureActive(connection: ConnectionState) {

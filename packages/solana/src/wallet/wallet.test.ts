@@ -110,69 +110,99 @@ test('signs an authorized message with Ed25519', async () => {
   ).resolves.toBe(true)
 })
 
-test('signs an authorized wire transaction with Ed25519', async () => {
-  const { environment, wallet } = setup()
-  await wallet.autoApprove(() =>
-    environment.dispatch({
-      method: 'standard:connect',
-      origin: 'https://app.example',
-      params: [],
-      walletId: 'wallet',
-    }),
-  )
-  const unsignedTransaction = compileTransaction(
-    pipe(
-      createTransactionMessage({ version: 0 }),
-      (message) => setTransactionMessageFeePayer(Identity.alice.address, message),
-      (message) =>
-        setTransactionMessageLifetimeUsingBlockhash(
+test.for([
+  { chain: 'solana:localnet', version: 'legacy' },
+  { chain: undefined, version: 'legacy' },
+  { chain: 'solana:localnet', version: 0 },
+  { chain: undefined, version: 0 },
+] as const)(
+  'signs a $version transaction with chain $chain',
+  async ({ chain, version }) => {
+    const { environment, wallet } = setup()
+    await wallet.autoApprove(() =>
+      environment.dispatch({
+        method: 'standard:connect',
+        origin: 'https://app.example',
+        params: [],
+        walletId: 'wallet',
+      }),
+    )
+    const unsignedTransaction = compileTransaction(
+      pipe(
+        createTransactionMessage({ version }),
+        (message) => setTransactionMessageFeePayer(Identity.alice.address, message),
+        (message) =>
+          setTransactionMessageLifetimeUsingBlockhash(
+            {
+              blockhash: blockhash('11111111111111111111111111111111'),
+              lastValidBlockHeight: 100n,
+            },
+            message,
+          ),
+      ),
+    )
+    const transaction = getTransactionEncoder().encode(unsignedTransaction)
+    const [output] = await wallet.autoApprove(() =>
+      environment.dispatch<readonly { readonly signedTransaction: readonly number[] }[]>({
+        method: 'solana:signTransaction',
+        origin: 'https://app.example',
+        params: [
           {
-            blockhash: blockhash('11111111111111111111111111111111'),
-            lastValidBlockHeight: 100n,
+            address: Identity.alice.address,
+            ...(chain === undefined ? {} : { chain }),
+            transaction: [...transaction],
           },
-          message,
-        ),
-    ),
-  )
-  const transaction = getTransactionEncoder().encode(unsignedTransaction)
-  const response = environment.dispatch<
-    readonly { readonly signedTransaction: readonly number[] }[]
-  >({
-    method: 'solana:signTransaction',
-    origin: 'https://app.example',
-    params: [
-      {
-        address: Identity.alice.address,
-        chain: 'solana:localnet',
-        transaction: [...transaction],
-      },
-    ],
-    walletId: 'wallet',
-  })
-  await (await wallet.requests.next('solana:signTransaction')).approve()
-  const [output] = await response
-  const signedTransaction = getTransactionDecoder().decode(
-    Uint8Array.from(output?.signedTransaction ?? []),
-  )
-  const signature = signedTransaction.signatures[Identity.alice.address]
-  expect(signature).not.toBeNull()
+        ],
+        walletId: 'wallet',
+      }),
+    )
+    const signedTransaction = getTransactionDecoder().decode(
+      Uint8Array.from(output?.signedTransaction ?? []),
+    )
+    const signature = signedTransaction.signatures[Identity.alice.address]
+    expect(signature).not.toBeNull()
 
-  const publicKey = await crypto.subtle.importKey(
-    'raw',
-    Uint8Array.from(getBase58Encoder().encode(Identity.alice.address)).buffer,
-    'Ed25519',
-    false,
-    ['verify'],
-  )
-  await expect(
-    crypto.subtle.verify(
+    const publicKey = await crypto.subtle.importKey(
+      'raw',
+      Uint8Array.from(getBase58Encoder().encode(Identity.alice.address)).buffer,
       'Ed25519',
-      publicKey,
-      Uint8Array.from(signature ?? []).buffer,
-      Uint8Array.from(signedTransaction.messageBytes).buffer,
-    ),
-  ).resolves.toBe(true)
-})
+      false,
+      ['verify'],
+    )
+    await expect(
+      crypto.subtle.verify(
+        'Ed25519',
+        publicKey,
+        Uint8Array.from(signature ?? []).buffer,
+        Uint8Array.from(signedTransaction.messageBytes).buffer,
+      ),
+    ).resolves.toBe(true)
+  },
+)
+
+test.for(['solana:devnet', '', null, 1])(
+  'rejects an explicitly unsupported or invalid transaction chain: %s',
+  async (chain) => {
+    const { environment, wallet } = setup()
+    await wallet.autoApprove(() =>
+      environment.dispatch({
+        method: 'standard:connect',
+        origin: 'https://app.example',
+        params: [],
+        walletId: 'wallet',
+      }),
+    )
+
+    await expect(
+      environment.dispatch({
+        method: 'solana:signTransaction',
+        origin: 'https://app.example',
+        params: [{ address: Identity.alice.address, chain, transaction: [1] }],
+        walletId: 'wallet',
+      }),
+    ).rejects.toBeInstanceOf(Errors.InvalidParamsError)
+  },
+)
 
 test('rejects signing before the origin is authorized', async () => {
   const { environment } = setup()

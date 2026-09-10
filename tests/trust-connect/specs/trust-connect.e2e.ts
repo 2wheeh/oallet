@@ -85,12 +85,11 @@ test('connects and signs through Trust Connect Wallet Standard discovery', async
   ).resolves.toBe(true)
 })
 
-test.skip(!projectId, 'Set VITE_WC_PROJECT_ID to run the real-relay canary')
-
 test('approves only EVM from Trust Connect multi-namespace proposal', async ({
   oallet,
   page,
 }) => {
+  test.skip(!projectId, 'Set VITE_WC_PROJECT_ID to run the real-relay canary')
   if (!projectId) throw new Error('Missing VITE_WC_PROJECT_ID')
   await using walletConnect = await Client.create({
     environment: oallet,
