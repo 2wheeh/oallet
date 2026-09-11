@@ -2,7 +2,22 @@ import { Environment } from '@oallet/core'
 import { Fixture } from '@oallet/playwright'
 import { Identity, Profile, Wallet } from '@oallet/solana'
 import { test as base, expect } from '@playwright/test'
-import { getBase58Encoder } from '@solana/kit'
+import {
+  compileTransaction,
+  createSolanaRpc,
+  createSolanaRpcSubscriptions,
+  createTransactionMessage,
+  getBase58Decoder,
+  getBase58Encoder,
+  getTransactionEncoder,
+  pipe,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash,
+  signature,
+} from '@solana/kit'
+import { Surfnet } from '@solana/surfpool'
+
+let surfnet: Surfnet
 
 const profile = Profile.keypair({
   accounts: [Identity.alice],
@@ -12,11 +27,38 @@ const profile = Profile.keypair({
 })
 
 const test = Fixture.extend(base, {
-  environment: () => Environment.create({ wallets: [Wallet.create({ profile })] }),
+  environment: () => Environment.create({ wallets: [createWallet()] }),
+})
+
+function createWallet() {
+  return Wallet.create({
+    profile,
+    chains: [
+      {
+        chain: 'solana:localnet',
+        rpc: createSolanaRpc(surfnet.rpcUrl),
+        rpcSubscriptions: createSolanaRpcSubscriptions(surfnet.wsUrl),
+      },
+    ],
+    transactionTimeoutMs: 15_000,
+  })
+}
+
+test.beforeAll(() => {
+  surfnet = Surfnet.startWithConfig({ offline: true })
+  surfnet.fundSolMany([
+    { address: Identity.alice.address, lamports: 1_000_000_000 },
+    { address: Identity.bob.address, lamports: 1_000_000_000 },
+  ])
+})
+
+test.afterAll(() => {
+  surfnet.stop()
 })
 
 test('discovers and connects Oallet through ConnectorKit', async ({ oallet, page }) => {
-  await page.goto('/')
+  const rpc = createSolanaRpc(surfnet.rpcUrl)
+  await page.goto(`/?rpc=${encodeURIComponent(surfnet.rpcUrl)}`)
   await expect(page.getByTestId('wallet-names')).toContainText(profile.name)
 
   await page.getByRole('button', { name: 'Connect Oallet', exact: true }).click()
@@ -50,12 +92,158 @@ test('discovers and connects Oallet through ConnectorKit', async ({ oallet, page
     ),
   ).resolves.toBe(true)
 
-  await page.getByRole('button', { name: 'Sign transaction' }).click()
+  const { value: balanceBefore } = await rpc
+    .getBalance(Identity.bob.address, { commitment: 'confirmed' })
+    .send()
+  await page.getByTestId('transaction-to-input').fill(Identity.bob.address)
+  await page.getByTestId('transaction-lamports-input').fill('1')
+  await page.getByRole('button', { name: 'Send transaction' }).click()
   await (
     await oallet.wallet(profile.id).requests.next('solana:signTransaction')
   ).approve()
-  await expect(page.getByTestId('transaction-signature')).toHaveText('64')
+  await expect(page.getByTestId('transaction-status')).toHaveText('submitted', {
+    timeout: 15_000,
+  })
+  const transactionSignature = signature(
+    await page.getByTestId('transaction-signature').innerText(),
+  )
+  await expect
+    .poll(
+      () =>
+        rpc
+          .getTransaction(transactionSignature, {
+            commitment: 'confirmed',
+            encoding: 'json',
+            maxSupportedTransactionVersion: 0,
+          })
+          .send(),
+      { timeout: 15_000 },
+    )
+    .toMatchObject({ meta: { err: null } })
+  await expect
+    .poll(
+      () => rpc.getBalance(Identity.bob.address, { commitment: 'confirmed' }).send(),
+      { timeout: 15_000 },
+    )
+    .toMatchObject({ value: balanceBefore + 1n })
 
   await page.getByRole('button', { name: 'Disconnect Oallet', exact: true }).click()
   await expect(page.getByTestId('wallet-status')).toHaveText('disconnected')
 })
+
+test('submits a transfer through the wallet from ConnectorKit', async ({
+  oallet,
+  page,
+}) => {
+  const rpc = createSolanaRpc(surfnet.rpcUrl)
+  await page.goto(`/?rpc=${encodeURIComponent(surfnet.rpcUrl)}`)
+  await page.getByRole('button', { name: 'Connect Oallet', exact: true }).click()
+  await (await oallet.wallet(profile.id).requests.next('standard:connect')).approve()
+  await expect(page.getByTestId('wallet-status')).toHaveText('connected')
+  const { value: before } = await rpc
+    .getBalance(Identity.bob.address, { commitment: 'confirmed' })
+    .send()
+  await page.getByTestId('transaction-to-input').fill(Identity.bob.address)
+  await page.getByTestId('transaction-lamports-input').fill('1')
+  // Transaction submission must happen in the wallet's Node process, never in the dApp.
+  await page.route(surfnet.rpcUrl, async (route) => {
+    if (route.request().postDataJSON()?.method === 'sendTransaction') {
+      await route.abort()
+    } else {
+      await route.continue()
+    }
+  })
+  await page.getByRole('button', { name: 'Send with wallet', exact: true }).click()
+  const request = await oallet
+    .wallet(profile.id)
+    .requests.next('solana:signAndSendTransaction')
+  expect(request.params).toMatchObject([
+    { chain: 'solana:localnet', options: { skipPreflight: false } },
+  ])
+  await expect(page.getByTestId('wallet-transaction-signature')).toBeEmpty()
+  const [output] = await request.approve()
+  await expect(page.getByTestId('wallet-transaction-status')).toHaveText('submitted', {
+    timeout: 15_000,
+  })
+  const transactionSignature = signature(
+    await page.getByTestId('wallet-transaction-signature').innerText(),
+  )
+  expect(output?.signature).toEqual([...getBase58Encoder().encode(transactionSignature)])
+  await expect
+    .poll(
+      () =>
+        rpc
+          .getTransaction(transactionSignature, {
+            commitment: 'confirmed',
+            encoding: 'json',
+            maxSupportedTransactionVersion: 0,
+          })
+          .send(),
+      { timeout: 15_000 },
+    )
+    .toMatchObject({ meta: { err: null } })
+  await expect
+    .poll(
+      () => rpc.getBalance(Identity.bob.address, { commitment: 'confirmed' }).send(),
+      { timeout: 15_000 },
+    )
+    .toMatchObject({ value: before + 1n })
+})
+
+for (const commitment of ['processed', 'confirmed', 'finalized'] as const) {
+  test(`wallet confirms a Surfpool transaction at ${commitment}`, async () => {
+    const environment = Environment.create({ wallets: [createWallet()] })
+    try {
+      const wallet = environment.wallet(profile.id)
+      const rpc = createSolanaRpc(surfnet.rpcUrl)
+      await wallet.autoApprove(() =>
+        environment.dispatch({
+          walletId: profile.id,
+          origin: 'https://app.example',
+          method: 'standard:connect',
+        }),
+      )
+      const { value: lifetime } = await rpc
+        .getLatestBlockhash({ commitment: 'confirmed' })
+        .send()
+      const transaction = compileTransaction(
+        pipe(
+          createTransactionMessage({ version: 0 }),
+          (message) => setTransactionMessageFeePayer(Identity.alice.address, message),
+          (message) => setTransactionMessageLifetimeUsingBlockhash(lifetime, message),
+        ),
+      )
+      const response = environment.dispatch({
+        walletId: profile.id,
+        origin: 'https://app.example',
+        method: 'solana:signAndSendTransaction',
+        params: [
+          {
+            address: Identity.alice.address,
+            chain: 'solana:localnet',
+            options: { commitment, preflightCommitment: 'confirmed' },
+            transaction: [...getTransactionEncoder().encode(transaction)],
+          },
+        ],
+      })
+      const [output] = await (
+        await wallet.requests.next('solana:signAndSendTransaction')
+      ).approve()
+      await response
+      const transactionSignature = signature(
+        getBase58Decoder().decode(Uint8Array.from(output?.signature ?? [])),
+      )
+      const {
+        value: [status],
+      } = await rpc.getSignatureStatuses([transactionSignature]).send()
+      expect(status?.err).toBeNull()
+      expect(status?.confirmationStatus).toBeDefined()
+      const levels = ['processed', 'confirmed', 'finalized']
+      expect(levels.indexOf(status?.confirmationStatus ?? '')).toBeGreaterThanOrEqual(
+        levels.indexOf(commitment),
+      )
+    } finally {
+      await environment.dispose()
+    }
+  })
+}
