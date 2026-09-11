@@ -17,10 +17,19 @@ overrides:
 
 peerDependencyRules:
   allowedVersions:
+    # ws 7's optional native UTF-8 validator remains API-compatible with v6.
+    "ws@7>utf-8-validate": "6"
     # WalletConnect's transitive Solana packages have not widened their peer range for TypeScript 6 yet.
     typescript: '>=5 <7'
+  ignoreMissing:
+    - react-native
 
 catalog:
+  '@scure/bip39': 2.4.0
+  '@solana/connector': 0.2.6
+  '@solana/kit': ^7.1.1
+  '@solana/transaction-confirmation': ^7.1.1
+  '@solana/web3.js': 1.98.4
   '@arethetypeswrong/cli': ^0.18.5
   '@biomejs/biome': 2.5.10
   '@changesets/changelog-github': ^1.0.0
@@ -39,6 +48,7 @@ catalog:
   '@walletconnect/sign-client': 2.23.10
   '@walletconnect/utils': 2.23.10
   pngjs: 7.0.0
+  micro-key-producer: 0.10.2
   prool: ^0.2.14
   publint: ^0.3.21
   qr: 0.7.0

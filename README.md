@@ -9,6 +9,7 @@ and routes approvals back to the test process.
 - EVM EOA profiles derived from the standard ten-account Anvil mnemonic
 - Real signing and transaction submission through consumer-provided viem transports
 - EIP-6963 injection before application code, without `window.ethereum` or an extension
+- Solana Wallet Standard discovery with real Ed25519 message signing
 - Manual approval queues, wallet-scoped auto approval, reset, snapshot, and restore
 - A real `@reown/walletkit` peer for WalletConnect v2 pairing and session requests
 - Playwright fixtures, failure traces, and visible QR decoding
@@ -26,6 +27,7 @@ The `oallet` umbrella package re-exports each package through a subpath:
 import { Environment } from 'oallet/core'
 import { Identity, Wallet } from 'oallet/evm'
 import { Browser, Fixture, Qr } from 'oallet/playwright'
+import * as Solana from 'oallet/solana'
 import { Client } from 'oallet/walletconnect'
 ```
 
@@ -48,6 +50,30 @@ const environment = Core.Environment.create({ /* ... */ })
 const test = OalletPlaywright.Fixture.extend(base, { /* ... */ })
 await using client = await WalletConnect.Client.create({ /* ... */ })
 ```
+
+## Test identities
+
+EVM and Solana share the public Anvil mnemonic
+`test test test test test test test test test test test junk`, an empty BIP39
+passphrase, and the identity order Alice, Bob, Charlie, Dave, Eve, Frank, Grace,
+Heidi, Ivan, Judy. `Identity` from `oallet/core` exposes this `mnemonic` and `names`
+list for consumer test infrastructure.
+
+| Adapter | Derivation path for identity index `i` | Key type |
+| --- | --- | --- |
+| EVM | `m/44'/60'/0'/0/i` | secp256k1 |
+| Solana | `m/44'/501'/i'/0'` | Ed25519 via SLIP-0010 |
+
+For example, `Evm.Identity.alice` and `Solana.Identity.alice` both use index `0`.
+They are separate keys derived from the same mnemonic, not convertible addresses.
+The EVM addresses match Anvil's default accounts. The Solana path follows the
+[Solana Cookbook](https://solana.com/developers/cookbook/wallets/restore-from-mnemonic)
+and is also [supported by Phantom](https://help.phantom.com/articles/12988493966227).
+Oallet explicitly uses this convention; Solana wallets also support other paths.
+
+Solana presets replace the earlier name-hash preview addresses. Fund accounts using
+the current `Identity.*.address` values and recreate snapshots made with the preview
+profiles. Oallet does not fund these accounts; consumers provide that infrastructure.
 
 ## EVM and Playwright
 
@@ -160,6 +186,57 @@ await connection.reconnect()
 `oallet.trace` is a versioned, read-only artifact containing redacted request,
 connection, provider-delivery, and environment lifecycle events. The Playwright
 fixture attaches JSON and text forms automatically when a test fails.
+
+## Solana and Wallet Standard
+
+Solana keypair wallets use the same `Environment.create({ wallets: [...] })` state
+model as EVM wallets. The Playwright fixture registers them through Wallet Standard,
+so applications discover the wallet without a wallet-specific `window` property.
+
+```ts
+import { Environment } from 'oallet/core'
+import { Identity, Profile, Wallet } from 'oallet/solana'
+
+const profile = Profile.keypair({
+  accounts: [Identity.alice],
+  chains: ['solana:localnet'],
+  id: 'solana-wallet',
+  name: 'Oallet Solana',
+})
+
+const environment = Environment.create({
+  wallets: [Wallet.create({ profile })],
+})
+```
+
+Wallets support `standard:connect`, `standard:disconnect`, `standard:events`,
+`solana:signMessage`, and `solana:signTransaction` for legacy and version-0 wire
+transactions. To also expose `solana:signAndSendTransaction`, inject a Kit RPC and
+subscription client for every chain in the profile:
+
+```ts
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
+
+const wallet = Wallet.create({
+  profile,
+  chains: [{
+    chain: 'solana:localnet',
+    rpc: createSolanaRpc('http://127.0.0.1:8899'),
+    rpcSubscriptions: createSolanaRpcSubscriptions('ws://127.0.0.1:8900'),
+  }],
+  transactionTimeoutMs: 30_000,
+})
+```
+
+Without RPC bindings, the wallet continues to offer signing only. Sign-and-send
+requires an explicit chain and returns the transaction's signature as 64 raw bytes.
+Omitting `options.commitment` returns after RPC acceptance; specifying `processed`,
+`confirmed`, or `finalized` waits for that commitment. `preflightCommitment`,
+`skipPreflight`, `maxRetries`, and `minContextSlot` control submission separately.
+The original transaction message and blockhash are preserved. Confirmation is bounded
+by `transactionTimeoutMs` per transaction after approval; timeout, request cancellation,
+reset, restore, and disposal fail pending work. Submission does not guarantee confirmation,
+and cancellation cannot retract a transaction already submitted to the network.
 
 ## WalletConnect
 

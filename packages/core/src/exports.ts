@@ -1,5 +1,6 @@
 export * as Environment from './environment/exports.js'
 export * as Errors from './errors/exports.js'
+export * as Identity from './identity/exports.js'
 export * as Json from './json/exports.js'
 export * as Profile from './profile/exports.js'
 export * as Request from './request/exports.js'

@@ -1,0 +1,8 @@
+{
+  "extends": "@oallet/config/tsconfig/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"]
+  },
+  "include": ["fixture", "playwright.config.ts", "specs"]
+}
