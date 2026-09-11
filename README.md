@@ -209,10 +209,34 @@ const environment = Environment.create({
 })
 ```
 
-The initial vertical slice implements `standard:connect`, `standard:disconnect`,
-`standard:events`, `solana:signMessage`, and `solana:signTransaction` for legacy and
-version-0 wire transactions. Sending transactions is not advertised because RPC
-execution remains the consuming dApp's responsibility.
+Wallets support `standard:connect`, `standard:disconnect`, `standard:events`,
+`solana:signMessage`, and `solana:signTransaction` for legacy and version-0 wire
+transactions. To also expose `solana:signAndSendTransaction`, inject a Kit RPC and
+subscription client for every chain in the profile:
+
+```ts
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
+
+const wallet = Wallet.create({
+  profile,
+  chains: [{
+    chain: 'solana:localnet',
+    rpc: createSolanaRpc('http://127.0.0.1:8899'),
+    rpcSubscriptions: createSolanaRpcSubscriptions('ws://127.0.0.1:8900'),
+  }],
+  transactionTimeoutMs: 30_000,
+})
+```
+
+Without RPC bindings, the wallet continues to offer signing only. Sign-and-send
+requires an explicit chain and returns the transaction's signature as 64 raw bytes.
+Omitting `options.commitment` returns after RPC acceptance; specifying `processed`,
+`confirmed`, or `finalized` waits for that commitment. `preflightCommitment`,
+`skipPreflight`, `maxRetries`, and `minContextSlot` control submission separately.
+The original transaction message and blockhash are preserved. Confirmation is bounded
+by `transactionTimeoutMs` per transaction after approval; timeout, request cancellation,
+reset, restore, and disposal fail pending work. Submission does not guarantee confirmation,
+and cancellation cannot retract a transaction already submitted to the network.
 
 ## WalletConnect
 

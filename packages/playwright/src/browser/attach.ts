@@ -13,6 +13,7 @@ const bindingName = '__oallet_bridge_v1__'
 const attachedContexts = new WeakSet<BrowserContext>()
 
 type BrowserProfile = {
+  readonly features?: readonly string[] | undefined
   readonly data: Json.Value
   readonly icon?: string | undefined
   readonly id: string
@@ -248,14 +249,31 @@ export async function attach(options: attach.Options): Promise<Handle> {
       )
     })
     const profiles: BrowserProfile[] = environment.profiles.map(
-      ({ data, icon, id, kind, name, rdns }) => ({
-        data,
-        ...(icon === undefined ? {} : { icon }),
-        id,
-        kind,
-        name,
-        ...(rdns === undefined ? {} : { rdns }),
-      }),
+      ({ data, icon, id, kind, name, rdns }) => {
+        const state =
+          kind === 'solana:keypair'
+            ? environment[Environment.controller].state(id, '')
+            : undefined
+        const features =
+          state && typeof state === 'object' && !Array.isArray(state)
+            ? (state as Record<string, Json.Value>).features
+            : undefined
+        return {
+          data,
+          ...(Array.isArray(features)
+            ? {
+                features: features.filter(
+                  (feature): feature is string => typeof feature === 'string',
+                ),
+              }
+            : {}),
+          ...(icon === undefined ? {} : { icon }),
+          id,
+          kind,
+          name,
+          ...(rdns === undefined ? {} : { rdns }),
+        }
+      },
     )
     await context.addInitScript(browserBootstrap, JSON.stringify(profiles))
   } catch (error) {
@@ -508,6 +526,79 @@ function browserBootstrap(profilesJson: string) {
         },
         chains: Object.freeze(chains),
         features: Object.freeze({
+          ...(profile.features?.includes('solana:signAndSendTransaction')
+            ? {
+                'solana:signAndSendTransaction': Object.freeze({
+                  async signAndSendTransaction(
+                    ...inputs: readonly {
+                      readonly account: StandardAccount
+                      readonly chain: string
+                      readonly transaction: Uint8Array
+                      readonly options?: {
+                        readonly commitment?: 'processed' | 'confirmed' | 'finalized'
+                        readonly preflightCommitment?:
+                          | 'processed'
+                          | 'confirmed'
+                          | 'finalized'
+                        readonly minContextSlot?: number
+                        readonly maxRetries?: number
+                        readonly skipPreflight?: boolean
+                      }
+                    }[]
+                  ) {
+                    const result = await call(
+                      'solana:signAndSendTransaction',
+                      inputs.map((input) => ({
+                        address: input.account.address,
+                        chain: input.chain,
+                        transaction: [...input.transaction],
+                        ...(input.options === undefined
+                          ? {}
+                          : { options: input.options }),
+                      })),
+                    )
+                    if (!Array.isArray(result) || result.length !== inputs.length) {
+                      throw new Error(
+                        'Oallet returned invalid Solana transaction signatures',
+                      )
+                    }
+                    return result.map((candidate) => {
+                      if (
+                        !candidate ||
+                        typeof candidate !== 'object' ||
+                        Array.isArray(candidate)
+                      ) {
+                        throw new Error(
+                          'Oallet returned an invalid Solana transaction signature',
+                        )
+                      }
+                      const signature = (candidate as Record<string, unknown>).signature
+                      if (
+                        !Array.isArray(signature) ||
+                        signature.length !== 64 ||
+                        !signature.every(
+                          (byte) =>
+                            typeof byte === 'number' &&
+                            Number.isInteger(byte) &&
+                            byte >= 0 &&
+                            byte <= 255,
+                        )
+                      ) {
+                        throw new Error(
+                          'Oallet returned invalid Solana transaction signature bytes',
+                        )
+                      }
+                      return Object.freeze({ signature: new Uint8Array(signature) })
+                    })
+                  },
+                  supportedTransactionVersions: Object.freeze([
+                    'legacy' as const,
+                    0 as const,
+                  ]),
+                  version: '1.0.0',
+                }),
+              }
+            : {}),
           'solana:signTransaction': Object.freeze({
             async signTransaction(
               ...inputs: readonly {

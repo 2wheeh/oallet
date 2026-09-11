@@ -37,6 +37,7 @@
     "@oallet/core": "workspace:^",
     "@scure/bip39": "catalog:",
     "@solana/kit": "catalog:",
+    "@solana/transaction-confirmation": "catalog:",
     "micro-key-producer": "catalog:"
   },
   "devDependencies": {

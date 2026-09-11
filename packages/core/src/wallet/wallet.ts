@@ -7,6 +7,7 @@ export type Input = {
   readonly method: string
   readonly origin: string
   readonly params?: Json.Value | undefined
+  readonly signal?: AbortSignal | undefined
 }
 
 export type Immediate = {
