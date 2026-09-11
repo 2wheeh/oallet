@@ -2,6 +2,7 @@ import type { Wallet as CoreWallet, Json } from '@oallet/core'
 import {
   createSignableMessage,
   getBase58Encoder,
+  getCompiledTransactionMessageDecoder,
   getTransactionDecoder,
   getTransactionEncoder,
   partiallySignTransaction,
@@ -9,6 +10,7 @@ import {
 
 import type * as Connection from '../connection/connection.js'
 import {
+  ChainNotConfiguredError,
   ConnectionDisposedError,
   ConnectionNotFoundError,
   InvalidParamsError,
@@ -21,6 +23,11 @@ import {
 } from '../errors/errors.js'
 import * as Identity from '../identity/identity.js'
 import type * as Profile from '../profile/keypair.js'
+import {
+  type ChainBinding,
+  type SendOptions,
+  sendTransaction,
+} from './send-transaction.js'
 
 export type Controls = {
   readonly connections: Connection.Collection
@@ -28,6 +35,9 @@ export type Controls = {
 
 export type RequestResults = {
   readonly 'standard:connect': Connection.Instance
+  readonly 'solana:signAndSendTransaction': readonly {
+    readonly signature: readonly number[]
+  }[]
 }
 
 export type Instance = CoreWallet.Adapter<Controls, RequestResults> & {
@@ -37,9 +47,13 @@ export type Instance = CoreWallet.Adapter<Controls, RequestResults> & {
 type AccountView = {
   readonly address: string
   readonly chains: readonly Profile.Chain[]
-  readonly features: readonly ['solana:signMessage', 'solana:signTransaction']
+  readonly features: readonly string[]
   readonly label: string
   readonly publicKey: readonly number[]
+}
+
+type ViewProfile = Pick<Profile.Definition, 'data' | 'id'> & {
+  readonly features: readonly string[]
 }
 
 type ConnectionState = {
@@ -51,6 +65,42 @@ type ConnectionState = {
 
 export function create(options: create.Options): Instance {
   const { profile } = options
+  const bindings = new Map<Profile.Chain, ChainBinding>()
+  for (const binding of options.chains ?? []) {
+    if (!profile.data.chains.includes(binding.chain) || bindings.has(binding.chain)) {
+      throw new InvalidProfileError(
+        `Invalid or duplicate RPC binding for ${binding.chain}`,
+      )
+    }
+    bindings.set(binding.chain, binding)
+  }
+  if (bindings.size > 0) {
+    for (const chain of profile.data.chains) {
+      if (!bindings.has(chain))
+        throw new ChainNotConfiguredError(`Chain ${chain} has no RPC binding`)
+    }
+  }
+  const transactionTimeoutMs = options.transactionTimeoutMs ?? 30_000
+  if (
+    !Number.isSafeInteger(transactionTimeoutMs) ||
+    transactionTimeoutMs <= 0 ||
+    transactionTimeoutMs > 2_147_483_647
+  ) {
+    throw new InvalidProfileError(
+      'transactionTimeoutMs must be a positive 32-bit integer',
+    )
+  }
+  const features = Object.freeze([
+    'solana:signMessage',
+    'solana:signTransaction',
+    ...(bindings.size > 0 ? ['solana:signAndSendTransaction'] : []),
+  ])
+  const viewProfile: ViewProfile = { ...profile, features }
+  let lifetime = new AbortController()
+  function cancelTransactions() {
+    lifetime.abort()
+    lifetime = new AbortController()
+  }
   const connections = new Map<string, ConnectionState>()
   const signerByAddress = new Map(
     profile.data.accounts.map((preset) => [preset.address, Identity.account(preset)]),
@@ -81,12 +131,13 @@ export function create(options: create.Options): Instance {
     controls,
     dispose() {
       disposed = true
+      lifetime.abort()
       for (const connection of connections.values()) connection.status = 'disposed'
       connections.clear()
     },
     profile,
     async prepare(input) {
-      const connection = getConnection(connections, profile, emit, input.origin)
+      const connection = getConnection(connections, viewProfile, emit, input.origin)
       if (input.method === 'standard:connect') {
         const silent = connectSilent(input.params)
         if (silent) {
@@ -98,13 +149,14 @@ export function create(options: create.Options): Instance {
             value: accountViews(
               connection.connected ? connection.accounts : [],
               profile.data.chains,
+              features,
             ),
           }
         }
         if (connection.connected && connection.accounts.length > 0) {
           return {
             type: 'return',
-            value: accountViews(connection.accounts, profile.data.chains),
+            value: accountViews(connection.accounts, profile.data.chains, features),
           }
         }
         const accounts =
@@ -114,7 +166,7 @@ export function create(options: create.Options): Instance {
           async approve() {
             if (!connection.connected) await connection.handle.reconnect()
             await connection.handle.setAccounts(accounts)
-            return accountViews(connection.accounts, profile.data.chains)
+            return accountViews(connection.accounts, profile.data.chains, features)
           },
           controllerResult: () => connection.handle,
           data: {
@@ -167,12 +219,27 @@ export function create(options: create.Options): Instance {
           },
         }
       }
-      if (input.method === 'solana:signTransaction') {
+      if (
+        input.method === 'solana:signTransaction' ||
+        input.method === 'solana:signAndSendTransaction'
+      ) {
+        const sending = input.method === 'solana:signAndSendTransaction'
         ensureConnected(connection)
-        const requests = transactionRequests(input.params, profile.data.chains)
+        const requests = transactionRequests(
+          input.params,
+          profile.data.chains,
+          input.method,
+        )
         const accounts = requests.map(({ address }) =>
           authorizedAccount(profile, connection, address),
         )
+        const requestBindings = requests.map(({ chain }) => {
+          if (!sending) return undefined
+          const binding = chain === undefined ? undefined : bindings.get(chain)
+          if (!binding)
+            throw new ChainNotConfiguredError(`Chain ${chain} has no RPC binding`)
+          return binding
+        })
         const transactions = requests.map(({ transaction }, index) => {
           const decoded = decodeTransaction(transaction)
           const account = accounts[index] as Identity.Preset
@@ -186,38 +253,64 @@ export function create(options: create.Options): Instance {
         return {
           type: 'interactive',
           async approve() {
+            const signal = input.signal
+              ? AbortSignal.any([input.signal, lifetime.signal])
+              : lifetime.signal
+            const sign = async (
+              transaction: (typeof transactions)[number],
+              index: number,
+            ) => {
+              ensureConnected(connection)
+              const account = accounts[index] as Identity.Preset
+              authorizedAccount(profile, connection, account.address)
+              const signer = await signerByAddress.get(account.address)
+              if (!signer) {
+                throw new UnauthorizedError(`Account ${account.address} has no signer`)
+              }
+              try {
+                return await partiallySignTransaction([signer.keyPair], transaction)
+              } catch (cause) {
+                throw new SigningError('Failed to sign Solana transaction', { cause })
+              }
+            }
+            if (sending) {
+              const outputs = []
+              for (const [index, transaction] of transactions.entries()) {
+                signal.throwIfAborted()
+                const signed = await sign(transaction, index)
+                outputs.push(
+                  await sendTransaction({
+                    binding: requestBindings[index] as ChainBinding,
+                    options: (requests[index] as (typeof requests)[number]).options,
+                    signal,
+                    timeoutMs: transactionTimeoutMs,
+                    transaction: signed,
+                  }),
+                )
+              }
+              return outputs
+            }
             return Promise.all(
-              transactions.map(async (transaction, index) => {
-                const account = accounts[index] as Identity.Preset
-                const signer = await signerByAddress.get(account.address)
-                if (!signer) {
-                  throw new UnauthorizedError(`Account ${account.address} has no signer`)
-                }
-                try {
-                  const signed = await partiallySignTransaction(
-                    [signer.keyPair],
-                    transaction,
-                  )
-                  return {
-                    signedTransaction: [...getTransactionEncoder().encode(signed)],
-                  }
-                } catch (cause) {
-                  throw new SigningError('Failed to sign Solana transaction', { cause })
-                }
-              }),
+              transactions.map(async (transaction, index) => ({
+                signedTransaction: [
+                  ...getTransactionEncoder().encode(await sign(transaction, index)),
+                ],
+              })),
             )
           },
           data: {
             accounts: accounts.map((account) => account.address),
             chains: requests.map(({ chain }) => chain ?? null),
             transactions: requests.map(({ transaction }) => transaction),
-            type: 'signTransaction',
+            ...(sending ? { options: requests.map(({ options }) => options) } : {}),
+            type: sending ? 'signAndSendTransaction' : 'signTransaction',
           },
         }
       }
       throw new UnsupportedMethodError(`Method ${input.method} is not supported`)
     },
     async reset() {
+      cancelTransactions()
       const before = new Map(
         [...connections].map(([origin, connection]) => [origin, view(connection)]),
       )
@@ -231,12 +324,13 @@ export function create(options: create.Options): Instance {
           origin,
           before.get(origin) as ConnectionView,
           view(connections.get(origin) as ConnectionState),
-          profile,
+          viewProfile,
         )
       }
     },
     async restore(snapshot) {
       const entries = parseSnapshot(snapshot, profile)
+      cancelTransactions()
       const before = new Map(
         [...connections].map(([origin, connection]) => [origin, view(connection)]),
       )
@@ -258,7 +352,7 @@ export function create(options: create.Options): Instance {
         connections.set(
           entry.origin,
           createConnection(
-            profile,
+            viewProfile,
             emit,
             entry.origin,
             entry.accounts,
@@ -276,7 +370,7 @@ export function create(options: create.Options): Instance {
           connections.has(origin)
             ? view(connections.get(origin) as ConnectionState)
             : baselineView(),
-          profile,
+          viewProfile,
         )
       }
     },
@@ -299,8 +393,10 @@ export function create(options: create.Options): Instance {
         accounts: accountViews(
           connection?.connected ? connection.accounts : [],
           profile.data.chains,
+          features,
         ),
         connected: connection?.connected ?? true,
+        features,
       }
     },
     validateSnapshot(snapshot) {
@@ -312,13 +408,17 @@ export function create(options: create.Options): Instance {
 export declare namespace create {
   type Options = {
     readonly profile: Profile.Definition
+    /** Omit for signing only; otherwise bind every chain in the profile. */
+    readonly chains?: readonly ChainBinding[] | undefined
+    /** Maximum submission/confirmation duration per transaction, after approval. Default: 30 seconds. */
+    readonly transactionTimeoutMs?: number | undefined
   }
   type ReturnType = Instance
 }
 
 function getConnection(
   connections: Map<string, ConnectionState>,
-  profile: Profile.Definition,
+  profile: ViewProfile,
   emit: CoreWallet.AdapterContext['emit'],
   origin: string,
 ) {
@@ -331,7 +431,7 @@ function getConnection(
 }
 
 function createConnection(
-  profile: Pick<Profile.Definition, 'data' | 'id'>,
+  profile: ViewProfile,
   emit: CoreWallet.AdapterContext['emit'],
   origin: string,
   initialAccounts: readonly Identity.Preset[],
@@ -364,7 +464,7 @@ function createConnection(
       connection.connected = true
       await emit({
         connectionId: connection.handle.id,
-        data: accountViews(connection.accounts, profile.data.chains),
+        data: accountViews(connection.accounts, profile.data.chains, profile.features),
         name: 'connect',
         origin,
       })
@@ -388,7 +488,7 @@ function createConnection(
       if (changed && connection.connected) {
         await emit({
           connectionId: connection.handle.id,
-          data: accountViews(nextAccounts, profile.data.chains),
+          data: accountViews(nextAccounts, profile.data.chains, profile.features),
           name: 'accountsChanged',
           origin,
         })
@@ -402,11 +502,12 @@ function createConnection(
 function accountViews(
   accounts: readonly Identity.Preset[],
   chains: readonly Profile.Chain[],
+  features: readonly string[],
 ): readonly AccountView[] {
   return accounts.map((account) => ({
     address: account.address,
     chains,
-    features: ['solana:signMessage', 'solana:signTransaction'],
+    features,
     label: account.id,
     publicKey: [...getBase58Encoder().encode(account.address)],
   }))
@@ -453,17 +554,19 @@ function messageRequests(params: Json.Value | undefined) {
 function transactionRequests(
   params: Json.Value | undefined,
   supportedChains: readonly Profile.Chain[],
+  method: 'solana:signTransaction' | 'solana:signAndSendTransaction',
 ) {
   if (!Array.isArray(params) || params.length === 0) {
-    invalidParams('solana:signTransaction')
+    invalidParams(method)
   }
   return params.map((value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      invalidParams('solana:signTransaction')
+      invalidParams(method)
     }
     const input = value as Record<string, Json.Value>
     if (
       typeof input.address !== 'string' ||
+      (method === 'solana:signAndSendTransaction' && typeof input.chain !== 'string') ||
       (input.chain !== undefined &&
         (typeof input.chain !== 'string' ||
           !supportedChains.includes(input.chain as Profile.Chain))) ||
@@ -473,19 +576,72 @@ function transactionRequests(
           typeof byte === 'number' && Number.isInteger(byte) && byte >= 0 && byte <= 255,
       )
     ) {
-      invalidParams('solana:signTransaction')
+      invalidParams(method)
     }
     return {
       address: input.address,
       chain: input.chain as Profile.Chain | undefined,
       transaction: input.transaction as number[],
+      options:
+        method === 'solana:signAndSendTransaction' ? sendOptions(input.options) : {},
     }
   })
 }
 
+function sendOptions(value: Json.Value | undefined): SendOptions {
+  if (value === undefined) return {}
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    invalidParams('solana:signAndSendTransaction')
+  const input = value as Record<string, Json.Value>
+  for (const key of ['commitment', 'preflightCommitment']) {
+    if (
+      input[key] !== undefined &&
+      !['processed', 'confirmed', 'finalized'].includes(input[key] as string)
+    ) {
+      invalidParams('solana:signAndSendTransaction')
+    }
+  }
+  for (const key of ['minContextSlot', 'maxRetries']) {
+    if (
+      input[key] !== undefined &&
+      (typeof input[key] !== 'number' ||
+        !Number.isSafeInteger(input[key]) ||
+        input[key] < 0)
+    ) {
+      invalidParams('solana:signAndSendTransaction')
+    }
+  }
+  if (input.skipPreflight !== undefined && typeof input.skipPreflight !== 'boolean')
+    invalidParams('solana:signAndSendTransaction')
+  return {
+    ...(input.commitment === undefined
+      ? {}
+      : { commitment: input.commitment as NonNullable<SendOptions['commitment']> }),
+    ...(input.preflightCommitment === undefined
+      ? {}
+      : {
+          preflightCommitment: input.preflightCommitment as NonNullable<
+            SendOptions['preflightCommitment']
+          >,
+        }),
+    ...(input.minContextSlot === undefined
+      ? {}
+      : { minContextSlot: input.minContextSlot as number }),
+    ...(input.maxRetries === undefined ? {} : { maxRetries: input.maxRetries as number }),
+    ...(input.skipPreflight === undefined
+      ? {}
+      : { skipPreflight: input.skipPreflight as boolean }),
+  }
+}
+
 function decodeTransaction(transaction: readonly number[]) {
   try {
-    return getTransactionDecoder().decode(Uint8Array.from(transaction))
+    const decoded = getTransactionDecoder().decode(Uint8Array.from(transaction))
+    const message = getCompiledTransactionMessageDecoder().decode(decoded.messageBytes)
+    if (message.version !== 'legacy' && message.version !== 0) {
+      throw new Error('Only legacy and version-0 transactions are supported')
+    }
+    return decoded
   } catch (cause) {
     throw new InvalidParamsError('Invalid Solana transaction encoding', { cause })
   }
@@ -544,7 +700,7 @@ async function emitDiff(
   origin: string,
   before: ConnectionView,
   after: ConnectionView,
-  profile: Pick<Profile.Definition, 'data'>,
+  profile: ViewProfile,
 ) {
   const connectionId = after.connectionId ?? before.connectionId
   if (!after.connected) {
@@ -561,7 +717,7 @@ async function emitDiff(
   if (!before.connected) {
     await emit({
       ...(connectionId ? { connectionId } : {}),
-      data: accountViews(after.accounts, profile.data.chains),
+      data: accountViews(after.accounts, profile.data.chains, profile.features),
       name: 'connect',
       origin,
     })
@@ -572,7 +728,7 @@ async function emitDiff(
   ) {
     await emit({
       ...(connectionId ? { connectionId } : {}),
-      data: accountViews(after.accounts, profile.data.chains),
+      data: accountViews(after.accounts, profile.data.chains, profile.features),
       name: 'accountsChanged',
       origin,
     })

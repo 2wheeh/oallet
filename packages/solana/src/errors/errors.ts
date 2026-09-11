@@ -22,6 +22,21 @@ export class SigningError extends Errors.BaseError {
   override name = 'Solana.SigningError'
 }
 
+export class SubmissionError extends Errors.BaseError {
+  override readonly code = 'OALLET_SOLANA_SUBMISSION_FAILED'
+  override name = 'Solana.SubmissionError'
+}
+
+export class ConfirmationError extends Errors.BaseError {
+  override readonly code = 'OALLET_SOLANA_CONFIRMATION_FAILED'
+  override name = 'Solana.ConfirmationError'
+}
+
+export class ChainNotConfiguredError extends Errors.BaseError {
+  override readonly code = 'OALLET_SOLANA_CHAIN_NOT_CONFIGURED'
+  override name = 'Solana.ChainNotConfiguredError'
+}
+
 export class UnsupportedMethodError extends Errors.BaseError {
   override readonly code = 'OALLET_SOLANA_UNSUPPORTED_METHOD'
   override name = 'Solana.UnsupportedMethodError'

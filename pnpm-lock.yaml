@@ -33,6 +33,9 @@ catalogs:
     '@solana/kit':
       specifier: ^7.1.1
       version: 7.1.1
+    '@solana/transaction-confirmation':
+      specifier: ^7.1.1
+      version: 7.1.1
     '@solana/web3.js':
       specifier: 1.98.4
       version: 1.98.4
@@ -281,6 +284,9 @@ importers:
         specifier: 'catalog:'
         version: 2.4.0
       '@solana/kit':
+        specifier: 'catalog:'
+        version: 7.1.1(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)
+      '@solana/transaction-confirmation':
         specifier: 'catalog:'
         version: 7.1.1(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)
       micro-key-producer:
