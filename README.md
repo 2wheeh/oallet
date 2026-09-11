@@ -337,6 +337,7 @@ transaction, returns the RPC hash, and waits for its receipt through an unmodifi
 viem public client.
 
 The Solana ConnectorKit suite starts an isolated Surfnet through the Surfpool SDK,
-funds the deterministic Oallet accounts, signs a System Program transfer through
-Wallet Standard, submits it from the consuming dApp, and verifies the confirmed
-transaction and balance change through Solana JSON-RPC.
+funds the deterministic Oallet accounts, and exercises both dApp submission after
+wallet signing and wallet-owned signing/submission through ConnectorKit. Both paths
+verify confirmation and recipient balance changes; wallet confirmation is also
+checked against Surfpool at each supported commitment.

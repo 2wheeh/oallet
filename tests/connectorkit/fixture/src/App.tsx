@@ -40,6 +40,8 @@ function Consumer() {
   const [transactionSignature, setTransactionSignature] = useState('')
   const [transactionStatus, setTransactionStatus] = useState('idle')
   const [transactionTo, setTransactionTo] = useState('')
+  const [walletTransactionSignature, setWalletTransactionSignature] = useState('')
+  const [walletTransactionStatus, setWalletTransactionStatus] = useState('idle')
   const oallet = connectors.find(
     (connector) => connector.name === 'Oallet ConnectorKit Wallet',
   )
@@ -118,6 +120,47 @@ function Consumer() {
       </button>
       <output data-testid="transaction-signature">{transactionSignature}</output>
       <output data-testid="transaction-status">{transactionStatus}</output>
+      <button
+        disabled={
+          !signerReady ||
+          !signer?.getCapabilities().canSend ||
+          !wallet.account ||
+          !transactionTo
+        }
+        onClick={async () => {
+          if (!signer || !wallet.account) return
+          setWalletTransactionStatus('signing')
+          try {
+            const { blockhash } = await connection.getLatestBlockhash('confirmed')
+            const transaction = new Transaction({
+              feePayer: new PublicKey(wallet.account),
+              recentBlockhash: blockhash,
+            }).add(
+              SystemProgram.transfer({
+                fromPubkey: new PublicKey(wallet.account),
+                toPubkey: new PublicKey(transactionTo),
+                lamports: Number(transactionLamports),
+              }),
+            )
+            const signature = await signer.signAndSendTransaction(transaction, {
+              skipPreflight: false,
+            })
+            setWalletTransactionSignature(signature)
+            setWalletTransactionStatus('submitted')
+          } catch (error) {
+            setWalletTransactionStatus(
+              `error: ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }}
+        type="button"
+      >
+        Send with wallet
+      </button>
+      <output data-testid="wallet-transaction-signature">
+        {walletTransactionSignature}
+      </output>
+      <output data-testid="wallet-transaction-status">{walletTransactionStatus}</output>
       <button
         disabled={!wallet.isConnected || isDisconnecting}
         onClick={() => disconnect()}
