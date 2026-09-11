@@ -530,3 +530,25 @@ test.for(['reset', 'dispose'] as const)(
     expect(request.status).not.toBe('approved')
   },
 )
+
+test('cancels pending confirmation when restoring a snapshot', async () => {
+  const { connect, dispatch, rpc, wallet, environment } = setup()
+  await connect()
+  const snapshot = await environment.snapshot()
+  rpc.status.mockResolvedValue({ context: { slot: 1n }, value: [null] } as never)
+  const response = dispatch([input({ commitment: 'confirmed' })])
+  const failedResponse = expect(response).rejects.toThrow()
+  const request = await wallet.requests.next('solana:signAndSendTransaction')
+  const failedApproval = expect(request.approve()).rejects.toMatchObject({
+    name: 'AbortError',
+  })
+  await vi.waitFor(() => expect(rpc.status).toHaveBeenCalled())
+  const subscriptionSignal = rpc.subscribe.mock.calls[0]?.[0].abortSignal
+  expect(subscriptionSignal?.aborted).toBe(false)
+
+  await environment.restore(snapshot)
+
+  expect(subscriptionSignal?.aborted).toBe(true)
+  await Promise.all([failedResponse, failedApproval])
+  expect(request.status).not.toBe('approved')
+})
