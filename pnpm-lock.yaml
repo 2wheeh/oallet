@@ -57,6 +57,9 @@ catalogs:
     '@walletconnect/utils':
       specifier: 2.23.10
       version: 2.23.10
+    mipd:
+      specifier: 0.0.7
+      version: 0.0.7
     pngjs:
       specifier: 7.0.0
       version: 7.0.0
@@ -81,6 +84,9 @@ catalogs:
     typescript:
       specifier: ^6.0.0
       version: 6.0.3
+    uuid:
+      specifier: ^14.0.2
+      version: 14.0.2
     valibot:
       specifier: ^1.4.2
       version: 1.4.2
@@ -241,6 +247,9 @@ importers:
       '@types/pngjs':
         specifier: 'catalog:'
         version: 6.0.5
+      mipd:
+        specifier: 'catalog:'
+        version: 0.0.7(typescript@6.0.3)
       publint:
         specifier: 'catalog:'
         version: 0.3.24
@@ -250,6 +259,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      uuid:
+        specifier: 'catalog:'
+        version: 14.0.2
       vitest:
         specifier: 'catalog:'
         version: 4.1.11(@types/node@26.2.0)(yaml@2.9.0)
@@ -4065,6 +4077,10 @@ packages:
 
   util@0.12.5:
     resolution: {integrity: sha512-kZf/K6hEIrWHI6XqOFUiiMa+79wE/D8Q+NCNAWclkyg3b4d2k7s0QGepNjiABc+aR3N1PAyHL7p6UcLY6LmrnA==}
+
+  uuid@14.0.2:
+    resolution: {integrity: sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==}
+    hasBin: true
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
@@ -9641,6 +9657,8 @@ snapshots:
       is-generator-function: 1.1.2
       is-typed-array: 1.1.15
       which-typed-array: 1.1.22
+
+  uuid@14.0.2: {}
 
   uuid@8.3.2: {}
 

@@ -38,6 +38,7 @@ catalog:
   '@walletconnect/jsonrpc-utils': 1.0.8
   '@walletconnect/sign-client': 2.23.10
   '@walletconnect/utils': 2.23.10
+  mipd: 0.0.7
   pngjs: 7.0.0
   prool: ^0.2.14
   publint: ^0.3.21
@@ -46,6 +47,7 @@ catalog:
   react-dom: ^19.2.8
   tsdown: ^0.21.9
   typescript: ^6.0.0
+  uuid: ^14.0.2
   valibot: ^1.4.2
   viem: ^2.55.19
   vite: ^8.2.2

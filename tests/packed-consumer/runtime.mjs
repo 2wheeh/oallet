@@ -1,9 +1,10 @@
-import { strictEqual } from 'node:assert'
+import { deepStrictEqual, notStrictEqual, strictEqual } from 'node:assert'
 import { createHash } from 'node:crypto'
 import { Environment } from '@oallet/core'
 import { Identity, Profile, Transport, Wallet } from '@oallet/evm'
-import { Fixture, Qr } from '@oallet/playwright'
+import { Browser, Fixture, Qr } from '@oallet/playwright'
 import { Client } from '@oallet/walletconnect'
+import { chromium } from '@playwright/test'
 import { Environment as BundledEnvironment } from 'oallet/core'
 import {
   Profile as BundledProfile,
@@ -48,7 +49,48 @@ const snapshot = await environment.snapshot()
 if (snapshot.producedBy !== pkg.version) {
   throw new Error(`Unexpected snapshot producer: ${snapshot.producedBy}`)
 }
-await environment.dispose()
+// Load the injected runtime from the installed tarball with no workspace sources.
+const browser = await chromium.launch({ headless: true })
+try {
+  const context = await browser.newContext()
+  const pageErrors = []
+  context.on('page', (page) => {
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+  })
+  await context.route('http://packed-consumer.example/**', (route) =>
+    route.fulfill({
+      body: `<!doctype html><script>
+        window.addEventListener('eip6963:announceProvider', (event) => {
+          window.providerDetail = event.detail;
+        });
+        window.dispatchEvent(new Event('eip6963:requestProvider'));
+        window.chainId = window.providerDetail.provider.request({ method: 'eth_chainId' });
+      </script>`,
+      contentType: 'text/html',
+    }),
+  )
+  const handle = await Browser.attach({ context, environment })
+  const page = await context.newPage()
+  await page.goto('http://packed-consumer.example/')
+  const initial = await page.evaluate(async () => ({
+    chainId: await window.chainId,
+    nativeUuid: typeof crypto.randomUUID,
+    secure: isSecureContext,
+    uuid: window.providerDetail.info.uuid,
+  }))
+  strictEqual(initial.chainId, '0x7a69')
+  strictEqual(initial.nativeUuid, 'undefined')
+  strictEqual(initial.secure, false)
+  await page.reload()
+  notStrictEqual(await page.evaluate(() => window.providerDetail.info.uuid), initial.uuid)
+  strictEqual(await page.evaluate(() => window.chainId), '0x7a69')
+  deepStrictEqual(pageErrors, [])
+  await handle.dispose()
+  await context.close()
+} finally {
+  await browser.close()
+  await environment.dispose()
+}
 
 // Exercise qr 0.7 through the published package, not just workspace sources
 // or browser-test transforms.
