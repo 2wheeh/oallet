@@ -257,9 +257,23 @@ settlement. Verify peer-observed outcomes in end-to-end tests.
 
 ## Validation
 
-```sh
-pnpm check
-```
+| Command | Boundary |
+| --- | --- |
+| `pnpm check` | Lint and type checks |
+| `pnpm test:unit` | Tests without browser or chain-node processes |
+| `pnpm test:package` | Builds, installed tarball checks, and package exports; no browser binaries required |
+| `pnpm test:e2e` | Browser, chain-node, and relay tests, including the installed browser runtime |
+
+The Verify workflow runs these in separate jobs. Chromium and Foundry installation
+belong to E2E; keep Static, Unit, and Package independent of those installations.
+Release waits for all verification jobs.
+
+`@oallet/playwright` builds its Node library and standalone browser script with one
+tsdown configuration and invocation. Both targets compile in Node; Chromium is only
+needed to execute browser tests. `pnpm test:pack:browser` runs the installed-package
+browser test separately after a build, using Playwright fixtures for its lifecycle.
+The root `pnpm test:e2e` command builds first; run `pnpm build` before invoking
+package-level browser tests directly.
 
 The EVM integration suite launches Anvil through `prool`, submits a signed EOA
 transaction, returns the RPC hash, and waits for its receipt through an unmodified
