@@ -115,6 +115,7 @@ test('Wagmi surfaces a native connection rejection', async ({ oallet, page }) =>
   await expect(page.getByTestId('status')).toHaveText('disconnected')
 })
 
+// Manage attachment explicitly to intercept registration before Browser.attach runs.
 base(
   'Wagmi reconnects an authorized wallet discovered after app startup',
   async ({ baseURL, context }) => {
@@ -136,7 +137,9 @@ base(
     const exposeBinding = context.exposeBinding.bind(context)
     context.exposeBinding = (name, callback) =>
       exposeBinding(name, async (source, ...args) => {
-        await registration
+        if (name === '__oallet_bridge_v1__' && args[0]?.type === 'register') {
+          await registration
+        }
         return callback(source, ...args)
       })
 

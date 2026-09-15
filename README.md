@@ -8,7 +8,7 @@ and routes approvals back to the test process.
 
 - EVM EOA profiles derived from the standard ten-account Anvil mnemonic
 - Real signing and transaction submission through consumer-provided viem transports
-- EIP-6963 injection before application code, without `window.ethereum` or an extension
+- EIP-6963 discovery without `window.ethereum` or an extension
 - Manual approval queues, wallet-scoped auto approval, reset, snapshot, and restore
 - A real `@reown/walletkit` peer for WalletConnect v2 pairing and session requests
 - Playwright fixtures, failure traces, and visible QR decoding
@@ -76,6 +76,12 @@ export const test = Fixture.extend(base, {
     }),
 })
 ```
+
+The fixture installs the browser bootstrap before application code runs. Providers
+are announced after registration initializes their connection state, so discovery
+can complete after the app starts. Keep the EIP-6963 announcement listener active
+and read current account and chain state from the provider; later subscribers do
+not receive past `connect` events.
 
 `Wallet.eoa()` is the default EOA setup path. The lower-level primitives remain
 available when a test needs to define or reuse profile data separately from its RPC

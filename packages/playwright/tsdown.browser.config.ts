@@ -11,6 +11,7 @@ export default defineConfig({
   entry: { runtime: 'src/browser/runtime.ts' },
   failOnWarn: 'ci-only',
   format: 'iife',
+  // Browser.attach calls this export inside its init-script wrapper.
   globalName: 'oalletRuntime',
   outDir: 'dist/browser',
   platform: 'browser',

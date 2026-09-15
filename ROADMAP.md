@@ -19,7 +19,8 @@
 
 - [x] Implement one runner-neutral Controller as the authoritative state owner
 - [x] Keep the Browser Adapter as a dumb versioned protocol facade
-- [x] Expose EIP-6963 wallets before application code executes
+- [x] Install the browser bootstrap before application code executes and announce
+      EIP-6963 wallets after registration initializes their connection state
 - [x] Support multiple wallets, accounts, pages, and top-level origins
 - [x] Scope authorization and active chain state to each connection or session
 - [x] Add a thin Playwright fixture without depending on Playwright from core

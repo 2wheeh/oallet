@@ -107,7 +107,8 @@ export function bootstrap(profiles: readonly BrowserProfile[]) {
         typeof state.chainId === 'string'
       ) {
         const { chainId } = state
-        // Let discovery consumers attach their provider listeners first.
+        // Allow microtask-based listener setup during discovery, as used by Wagmi.
+        // Later discovery requests do not replay this initial connection event.
         queueMicrotask(() => emit('connect', { chainId }))
       }
     })

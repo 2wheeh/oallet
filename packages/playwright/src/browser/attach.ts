@@ -46,7 +46,7 @@ export async function attach(options: attach.Options): Promise<Handle> {
   }
   if (context.pages().length > 0) {
     throw new ExistingPageError(
-      'Attach Oallet before creating a page so discovery runs before app code',
+      'Attach Oallet before creating a page so the browser bootstrap runs before app code',
     )
   }
   attachedContexts.add(context)

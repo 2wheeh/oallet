@@ -5,6 +5,7 @@ import { expect, test, vi } from 'vitest'
 
 import { DeliveryError } from '../errors/errors.js'
 import * as Browser from './exports.js'
+import { bindingName } from './protocol.js'
 
 test.each([false, true])(
   'announces the restored connection state (%s) only after registration',
@@ -41,7 +42,7 @@ test.each([false, true])(
     const exposeBinding = context.exposeBinding.bind(context)
     vi.spyOn(context, 'exposeBinding').mockImplementation((name, callback) =>
       exposeBinding(name, async (source, ...args) => {
-        await registration
+        if (name === bindingName && args[0]?.type === 'register') await registration
         return callback(source, ...args)
       }),
     )
