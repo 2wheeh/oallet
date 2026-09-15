@@ -98,8 +98,18 @@ export function bootstrap(profiles: readonly BrowserProfile[]) {
       if (state && typeof state === 'object' && 'connected' in state) {
         connected = state.connected === true
       }
+      announceProvider(detail)
+      if (
+        connected &&
+        state &&
+        typeof state === 'object' &&
+        'chainId' in state &&
+        typeof state.chainId === 'string'
+      ) {
+        const { chainId } = state
+        // Let discovery consumers attach their provider listeners first.
+        queueMicrotask(() => emit('connect', { chainId }))
+      }
     })
-    // Discovery is synchronous; requests wait for registration through `ready`.
-    announceProvider(detail)
   }
 }

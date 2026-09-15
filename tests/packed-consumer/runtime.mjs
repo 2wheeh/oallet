@@ -60,11 +60,15 @@ try {
   await context.route('http://packed-consumer.example/**', (route) =>
     route.fulfill({
       body: `<!doctype html><script>
-        window.addEventListener('eip6963:announceProvider', (event) => {
-          window.providerDetail = event.detail;
+        window.providerDetail = new Promise((resolve) => {
+          window.addEventListener('eip6963:announceProvider', (event) => {
+            resolve(event.detail);
+          });
         });
         window.dispatchEvent(new Event('eip6963:requestProvider'));
-        window.chainId = window.providerDetail.provider.request({ method: 'eth_chainId' });
+        window.chainId = window.providerDetail.then(({ provider }) =>
+          provider.request({ method: 'eth_chainId' })
+        );
       </script>`,
       contentType: 'text/html',
     }),
@@ -76,13 +80,16 @@ try {
     chainId: await window.chainId,
     nativeUuid: typeof crypto.randomUUID,
     secure: isSecureContext,
-    uuid: window.providerDetail.info.uuid,
+    uuid: (await window.providerDetail).info.uuid,
   }))
   strictEqual(initial.chainId, '0x7a69')
   strictEqual(initial.nativeUuid, 'undefined')
   strictEqual(initial.secure, false)
   await page.reload()
-  notStrictEqual(await page.evaluate(() => window.providerDetail.info.uuid), initial.uuid)
+  notStrictEqual(
+    await page.evaluate(async () => (await window.providerDetail).info.uuid),
+    initial.uuid,
+  )
   strictEqual(await page.evaluate(() => window.chainId), '0x7a69')
   deepStrictEqual(pageErrors, [])
   await handle.dispose()

@@ -1,13 +1,111 @@
 import { Environment, Profile, type Wallet } from '@oallet/core'
 import { chromium, type Page } from '@playwright/test'
 import type { EIP6963ProviderDetail } from 'mipd'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import { DeliveryError } from '../errors/errors.js'
 import * as Browser from './exports.js'
 
+test.each([false, true])(
+  'announces the restored connection state (%s) only after registration',
+  async (restoredConnected) => {
+    let connected = restoredConnected
+    const adapter: Wallet.Adapter = {
+      profile: Profile.define({
+        data: {},
+        id: 'wallet',
+        kind: 'eip155:eoa',
+        name: 'Oallet Test Wallet',
+      }),
+      prepare: () => ({ type: 'return', value: '0x1' }),
+      reset() {
+        connected = !restoredConnected
+      },
+      restore(snapshot) {
+        connected = snapshot === true
+      },
+      snapshot: () => connected,
+      state: () => ({ chainId: '0x1', connected }),
+      validateSnapshot() {},
+    }
+    const environment = Environment.create({ wallets: [adapter] })
+    const snapshot = await environment.snapshot()
+    await environment.reset()
+    await environment.restore(snapshot)
+    const browser = await chromium.launch({ headless: true })
+    const context = await browser.newContext()
+    let releaseRegistration = () => {}
+    const registration = new Promise<void>((resolve) => {
+      releaseRegistration = resolve
+    })
+    const exposeBinding = context.exposeBinding.bind(context)
+    vi.spyOn(context, 'exposeBinding').mockImplementation((name, callback) =>
+      exposeBinding(name, async (source, ...args) => {
+        await registration
+        return callback(source, ...args)
+      }),
+    )
+    await context.route('https://app.example/**', (route) =>
+      route.fulfill({
+        body: `<!doctype html><script>
+          window.states = [];
+          window.connections = [];
+          window.firstChainId = new Promise((resolve) => {
+            window.addEventListener('eip6963:announceProvider', ({ detail }) => {
+              window.states.push(detail.provider.isConnected());
+              if (window.states.length === 1) {
+                Promise.resolve().then(() => {
+                  detail.provider.on('connect', (info) => window.connections.push(info));
+                });
+              }
+              resolve(detail.provider.request({ method: 'eth_chainId' }));
+            });
+          });
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+        </script>`,
+        contentType: 'text/html',
+      }),
+    )
+
+    try {
+      await Browser.attach({ context, environment })
+      const page = await context.newPage()
+      await page.goto('https://app.example/')
+      const states = () =>
+        page.evaluate(() => (window as typeof window & { states: boolean[] }).states)
+      expect(await states()).toEqual([])
+
+      releaseRegistration()
+      await expect.poll(states).toEqual([restoredConnected])
+      await expect(
+        page.evaluate(
+          () =>
+            (window as typeof window & { firstChainId: Promise<string> }).firstChainId,
+        ),
+      ).resolves.toBe('0x1')
+      await page.evaluate(() =>
+        window.dispatchEvent(new Event('eip6963:requestProvider')),
+      )
+      expect(await states()).toEqual([restoredConnected, restoredConnected])
+      expect(
+        await page.evaluate(
+          () =>
+            (window as typeof window & { connections: { chainId: string }[] })
+              .connections,
+        ),
+      ).toEqual(restoredConnected ? [{ chainId: '0x1' }] : [])
+    } finally {
+      releaseRegistration()
+      await context.close()
+      await browser.close()
+      await environment.dispose()
+    }
+  },
+  30_000,
+)
+
 test.each(['https', 'http'])(
-  'discovers providers before app code with unique UUIDs on %s pages',
+  'discovers providers from app startup with unique UUIDs on %s pages',
   async (protocol) => {
     const profiles = ['wallet-a', 'wallet-b'].map((id) =>
       Profile.define({
@@ -38,14 +136,18 @@ test.each(['https', 'http'])(
       route.fulfill({
         body: `<!doctype html><script>
           window.providers = [];
-          window.addEventListener('eip6963:announceProvider', (event) => {
-            window.providers.push(event.detail);
+          window.initialProviders = new Promise((resolve) => {
+            window.addEventListener('eip6963:announceProvider', (event) => {
+              window.providers.push(event.detail);
+              if (window.providers.length === 2) resolve([...window.providers]);
+            });
           });
           window.dispatchEvent(new Event('eip6963:requestProvider'));
-          window.initialProviders = [...window.providers];
-          window.chainIds = Promise.all(window.initialProviders.map(({ provider }) =>
-            provider.request({ method: 'eth_chainId' })
-          ));
+          window.chainIds = window.initialProviders.then((providers) =>
+            Promise.all(providers.map(({ provider }) =>
+              provider.request({ method: 'eth_chainId' })
+            ))
+          );
         </script>`,
         contentType: 'text/html',
       }),
@@ -98,10 +200,10 @@ async function readDiscovery(page: Page) {
   return page.evaluate(async () => {
     const globals = window as typeof window & {
       chainIds: Promise<string[]>
-      initialProviders: EIP6963ProviderDetail[]
+      initialProviders: Promise<EIP6963ProviderDetail[]>
       providers: EIP6963ProviderDetail[]
     }
-    const initial = globals.initialProviders
+    const initial = await globals.initialProviders
     const count = globals.providers.length
     window.dispatchEvent(new Event('eip6963:requestProvider'))
     const repeated = globals.providers.slice(count)
@@ -124,7 +226,7 @@ async function readDiscovery(page: Page) {
   })
 }
 
-test('announces an EIP-6963 provider before app code and bridges requests to the controller', async () => {
+test('announces an EIP-6963 provider and bridges requests to the controller', async () => {
   const origins: string[] = []
   const profile = Profile.define({
     data: {},
