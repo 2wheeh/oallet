@@ -12,7 +12,11 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 
+const { values } = parseArgs({
+  options: { browser: { type: 'boolean', default: false } },
+})
 const workspace = dirname(dirname(fileURLToPath(import.meta.url)))
 const temporary = await mkdtemp(join(tmpdir(), 'oallet-packed-consumer-'))
 const tarballs = join(temporary, 'tarballs')
@@ -86,26 +90,30 @@ try {
     cwd: consumer,
   })
   run('pnpm', ['install', '--frozen-lockfile'], { cwd: consumer })
-  run('pnpm', ['exec', 'tsc', '--noEmit'], { cwd: consumer })
-  run('node', ['runtime.mjs'], { cwd: consumer })
+  if (values.browser) {
+    run('pnpm', ['exec', 'playwright', 'test', 'browser.test.mjs'], { cwd: consumer })
+  } else {
+    run('pnpm', ['exec', 'tsc', '--noEmit'], { cwd: consumer })
+    run('node', ['runtime.mjs'], { cwd: consumer })
 
-  run('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile'], {
-    cwd: minimalConsumer,
-  })
-  run('pnpm', ['install', '--frozen-lockfile'], { cwd: minimalConsumer })
-  const walletConnectManifest = join(
-    minimalConsumer,
-    'node_modules',
-    '@oallet',
-    'walletconnect',
-    'package.json',
-  )
-  await access(walletConnectManifest).then(
-    () => {
-      throw new Error('The umbrella package installed optional WalletConnect support')
-    },
-    () => undefined,
-  )
+    run('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile'], {
+      cwd: minimalConsumer,
+    })
+    run('pnpm', ['install', '--frozen-lockfile'], { cwd: minimalConsumer })
+    const walletConnectManifest = join(
+      minimalConsumer,
+      'node_modules',
+      '@oallet',
+      'walletconnect',
+      'package.json',
+    )
+    await access(walletConnectManifest).then(
+      () => {
+        throw new Error('The umbrella package installed optional WalletConnect support')
+      },
+      () => undefined,
+    )
+  }
 } finally {
   await rm(temporary, { force: true, recursive: true })
 }

@@ -1,66 +1,233 @@
 import { Environment, Profile, type Wallet } from '@oallet/core'
-import { chromium, devices } from '@playwright/test'
-import { expect, test } from 'vitest'
+import { chromium, type Page } from '@playwright/test'
+import type { EIP6963ProviderDetail } from 'mipd'
+import { expect, test, vi } from 'vitest'
 
 import { DeliveryError } from '../errors/errors.js'
 import * as Browser from './exports.js'
+import { bindingName } from './protocol.js'
 
-test('announces a provider when the initial document lacks crypto.randomUUID', async () => {
-  const profile = Profile.define({
-    data: {},
-    id: 'wallet',
-    kind: 'eip155:eoa',
-    name: 'Oallet Test Wallet',
-    rdns: 'app.example.wallet',
-  })
-  const adapter: Wallet.Adapter = {
-    profile,
-    prepare() {
-      return { type: 'return', value: null }
-    },
-    reset() {},
-    restore() {},
-    snapshot: () => null,
-    validateSnapshot() {},
-  }
-  const environment = Environment.create({ wallets: [adapter] })
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext(devices['Desktop Chrome'])
-  const pageErrors: Error[] = []
-  context.on('page', (page) => {
-    page.on('pageerror', (error) => pageErrors.push(error))
-  })
-  await context.route('https://app.example/**', (route) =>
-    route.fulfill({
-      body: '<!doctype html><title>Fixture</title>',
-      contentType: 'text/html',
-    }),
-  )
-  await Browser.attach({ context, environment })
-  const page = await context.newPage()
-
-  try {
-    await page.goto('https://app.example/')
-    const uuid = await page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
-          window.addEventListener('eip6963:announceProvider', ((event: CustomEvent) =>
-            resolve(event.detail.info.uuid)) as EventListener)
-          window.dispatchEvent(new Event('eip6963:requestProvider'))
-        }),
+test.each([false, true])(
+  'announces the restored connection state (%s) only after registration',
+  async (restoredConnected) => {
+    let connected = restoredConnected
+    const adapter: Wallet.Adapter = {
+      profile: Profile.define({
+        data: {},
+        id: 'wallet',
+        kind: 'eip155:eoa',
+        name: 'Oallet Test Wallet',
+      }),
+      prepare: () => ({ type: 'return', value: '0x1' }),
+      reset() {
+        connected = !restoredConnected
+      },
+      restore(snapshot) {
+        connected = snapshot === true
+      },
+      snapshot: () => connected,
+      state: () => ({ chainId: '0x1', connected }),
+      validateSnapshot() {},
+    }
+    const environment = Environment.create({ wallets: [adapter] })
+    const snapshot = await environment.snapshot()
+    await environment.reset()
+    await environment.restore(snapshot)
+    const browser = await chromium.launch({ headless: true })
+    const context = await browser.newContext()
+    let releaseRegistration = () => {}
+    const registration = new Promise<void>((resolve) => {
+      releaseRegistration = resolve
+    })
+    const exposeBinding = context.exposeBinding.bind(context)
+    vi.spyOn(context, 'exposeBinding').mockImplementation((name, callback) =>
+      exposeBinding(name, async (source, ...args) => {
+        if (name === bindingName && args[0]?.type === 'register') await registration
+        return callback(source, ...args)
+      }),
+    )
+    await context.route('https://app.example/**', (route) =>
+      route.fulfill({
+        body: `<!doctype html><script>
+          window.states = [];
+          window.connections = [];
+          window.firstChainId = new Promise((resolve) => {
+            window.addEventListener('eip6963:announceProvider', ({ detail }) => {
+              window.states.push(detail.provider.isConnected());
+              if (window.states.length === 1) {
+                Promise.resolve().then(() => {
+                  detail.provider.on('connect', (info) => window.connections.push(info));
+                });
+              }
+              resolve(detail.provider.request({ method: 'eth_chainId' }));
+            });
+          });
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+        </script>`,
+        contentType: 'text/html',
+      }),
     )
 
-    expect(uuid).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    )
-    expect(pageErrors).toEqual([])
-  } finally {
-    await context.close()
-    await browser.close()
-  }
-}, 30_000)
+    try {
+      await Browser.attach({ context, environment })
+      const page = await context.newPage()
+      await page.goto('https://app.example/')
+      const states = () =>
+        page.evaluate(() => (window as typeof window & { states: boolean[] }).states)
+      expect(await states()).toEqual([])
 
-test('announces an EIP-6963 provider before app code and bridges requests to the controller', async () => {
+      releaseRegistration()
+      await expect.poll(states).toEqual([restoredConnected])
+      await expect(
+        page.evaluate(
+          () =>
+            (window as typeof window & { firstChainId: Promise<string> }).firstChainId,
+        ),
+      ).resolves.toBe('0x1')
+      await page.evaluate(() =>
+        window.dispatchEvent(new Event('eip6963:requestProvider')),
+      )
+      expect(await states()).toEqual([restoredConnected, restoredConnected])
+      expect(
+        await page.evaluate(
+          () =>
+            (window as typeof window & { connections: { chainId: string }[] })
+              .connections,
+        ),
+      ).toEqual(restoredConnected ? [{ chainId: '0x1' }] : [])
+    } finally {
+      releaseRegistration()
+      await context.close()
+      await browser.close()
+      await environment.dispose()
+    }
+  },
+  30_000,
+)
+
+test.each(['https', 'http'])(
+  'discovers providers from app startup with unique UUIDs on %s pages',
+  async (protocol) => {
+    const profiles = ['wallet-a', 'wallet-b'].map((id) =>
+      Profile.define({
+        data: {},
+        id,
+        kind: 'eip155:eoa',
+        name: `Oallet "${id}" \n </script>`,
+        rdns: `app.example.${id}`,
+      }),
+    )
+    const wallets: Wallet.Adapter[] = profiles.map((profile) => ({
+      profile,
+      prepare: () => ({ type: 'return', value: '0x1' }),
+      reset() {},
+      restore() {},
+      snapshot: () => null,
+      validateSnapshot() {},
+    }))
+    const environment = Environment.create({ wallets })
+    const browser = await chromium.launch({ headless: true })
+    const context = await browser.newContext()
+    const pageErrors: Error[] = []
+    context.on('page', (page) => {
+      page.on('pageerror', (error) => pageErrors.push(error))
+    })
+    const url = `${protocol}://app.example/`
+    await context.route(`${url}**`, (route) =>
+      route.fulfill({
+        body: `<!doctype html><script>
+          window.providers = [];
+          window.initialProviders = new Promise((resolve) => {
+            window.addEventListener('eip6963:announceProvider', (event) => {
+              window.providers.push(event.detail);
+              if (window.providers.length === 2) resolve([...window.providers]);
+            });
+          });
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+          window.chainIds = window.initialProviders.then((providers) =>
+            Promise.all(providers.map(({ provider }) =>
+              provider.request({ method: 'eth_chainId' })
+            ))
+          );
+        </script>`,
+        contentType: 'text/html',
+      }),
+    )
+    await Browser.attach({ context, environment })
+
+    try {
+      const page = await context.newPage()
+      await page.goto(url)
+      const initial = await readDiscovery(page)
+      expect(initial.secure).toBe(protocol === 'https')
+      expect(initial.nativeUuid).toBe(protocol === 'https' ? 'function' : 'undefined')
+      expect(initial.names).toEqual(profiles.map(({ name }) => name))
+      expect(initial.rdns).toEqual(profiles.map(({ rdns }) => rdns))
+      expect(initial.chainIds).toEqual(['0x1', '0x1'])
+      expect(initial.sameProviders).toBe(true)
+      expect(initial.frozen).toBe(true)
+      expect(initial.runtimeGlobal).toBe(false)
+      expect(initial.legacyProvider).toBe(false)
+
+      const secondPage = await context.newPage()
+      await secondPage.goto(url)
+      const second = await readDiscovery(secondPage)
+      await page.reload()
+      const reloaded = await readDiscovery(page)
+      const uuids = [...initial.uuids, ...second.uuids, ...reloaded.uuids]
+      expect(uuids).toHaveLength(6)
+      expect(new Set(uuids).size).toBe(6)
+      for (const uuid of uuids) {
+        expect(uuid).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        )
+      }
+      const requests = environment.trace.events.filter(
+        (event) => event.type === 'request.received',
+      )
+      expect(requests).toHaveLength(6)
+      expect(new Set(requests.map(({ requestId }) => requestId)).size).toBe(6)
+      expect(pageErrors).toEqual([])
+    } finally {
+      await context.close()
+      await browser.close()
+      await environment.dispose()
+    }
+  },
+  30_000,
+)
+
+async function readDiscovery(page: Page) {
+  return page.evaluate(async () => {
+    const globals = window as typeof window & {
+      chainIds: Promise<string[]>
+      initialProviders: Promise<EIP6963ProviderDetail[]>
+      providers: EIP6963ProviderDetail[]
+    }
+    const initial = await globals.initialProviders
+    const count = globals.providers.length
+    window.dispatchEvent(new Event('eip6963:requestProvider'))
+    const repeated = globals.providers.slice(count)
+    return {
+      chainIds: await globals.chainIds,
+      frozen: initial.every(
+        (detail) => Object.isFrozen(detail) && Object.isFrozen(detail.info),
+      ),
+      legacyProvider: 'ethereum' in window,
+      names: initial.map(({ info }) => info.name),
+      nativeUuid: typeof crypto.randomUUID,
+      rdns: initial.map(({ info }) => info.rdns),
+      runtimeGlobal: 'oalletRuntime' in window,
+      sameProviders:
+        repeated.length === initial.length &&
+        repeated.every((detail, index) => detail === initial[index]),
+      secure: isSecureContext,
+      uuids: initial.map(({ info }) => info.uuid),
+    }
+  })
+}
+
+test('announces an EIP-6963 provider and bridges requests to the controller', async () => {
   const origins: string[] = []
   const profile = Profile.define({
     data: {},

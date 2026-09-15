@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { Environment, Json, type Profile } from '@oallet/core'
 import type { BrowserContext, Frame, Page } from '@playwright/test'
 
@@ -9,52 +10,21 @@ import {
   UnsupportedFrameError,
 } from '../errors/errors.js'
 
-const bindingName = '__oallet_bridge_v1__'
-const attachedContexts = new WeakSet<BrowserContext>()
+import {
+  type BridgeMessage,
+  type BrowserGlobals,
+  type BrowserProfile,
+  bindingName,
+  type RequestResponse,
+} from './protocol.js'
 
-type BrowserProfile = {
-  readonly icon?: string | undefined
-  readonly id: string
-  readonly kind: string
-  readonly name: string
-  readonly rdns?: string | undefined
-}
+const attachedContexts = new WeakSet<BrowserContext>()
 
 type ProviderSession = {
   readonly frame: Frame
   readonly origin: string
   readonly pending: Map<string, AbortController>
   readonly walletId: string
-}
-
-type RegisterMessage = {
-  readonly protocolVersion: 1
-  readonly providerSessionId: string
-  readonly type: 'register'
-  readonly walletId: string
-}
-
-type RequestMessage = {
-  readonly method: string
-  readonly params?: Json.Value | undefined
-  readonly protocolVersion: 1
-  readonly providerSessionId: string
-  readonly requestId: string
-  readonly type: 'request'
-  readonly walletId: string
-}
-
-type BridgeMessage = RegisterMessage | RequestMessage
-
-type RequestResponse = {
-  readonly error?: {
-    readonly code: number
-    readonly data?: Json.Value | undefined
-    readonly message: string
-  }
-  readonly protocolVersion: 1
-  readonly requestId: string
-  readonly result?: Json.Value | undefined
 }
 
 type EnvironmentPort = {
@@ -76,7 +46,7 @@ export async function attach(options: attach.Options): Promise<Handle> {
   }
   if (context.pages().length > 0) {
     throw new ExistingPageError(
-      'Attach Oallet before creating a page so discovery runs before app code',
+      'Attach Oallet before creating a page so the browser bootstrap runs before app code',
     )
   }
   attachedContexts.add(context)
@@ -172,15 +142,7 @@ export async function attach(options: attach.Options): Promise<Handle> {
           try {
             delivered = await session.frame.evaluate(
               ({ name, providerSessionId, serializedData }) => {
-                const deliver = (
-                  globalThis as typeof globalThis & {
-                    __oallet_emit_v1__?: (
-                      providerSessionId: string,
-                      name: string,
-                      data?: unknown,
-                    ) => boolean
-                  }
-                ).__oallet_emit_v1__
+                const deliver = (globalThis as BrowserGlobals).__oallet_emit_v1__
                 return (
                   deliver?.(
                     providerSessionId,
@@ -255,7 +217,17 @@ export async function attach(options: attach.Options): Promise<Handle> {
         ...(rdns === undefined ? {} : { rdns }),
       }),
     )
-    await context.addInitScript(browserBootstrap, profiles)
+    // Both src/browser and the unbundled dist/browser resolve this packaged asset.
+    const runtime = await readFile(
+      new URL('../../dist/browser/runtime.iife.js', import.meta.url),
+      'utf8',
+    )
+    await context.addInitScript({
+      content: `(() => {
+${runtime}
+oalletRuntime.bootstrap(${JSON.stringify(profiles)});
+})()`,
+    })
   } catch (error) {
     unsubscribe()
     attachedContexts.delete(context)
@@ -364,132 +336,5 @@ function providerError(error: unknown): NonNullable<RequestResponse['error']> {
       typeof candidate.message === 'string'
         ? candidate.message
         : 'The wallet request failed',
-  }
-}
-
-function browserBootstrap(profiles: readonly BrowserProfile[]) {
-  if (globalThis.window !== globalThis.window.top) return
-  if (!['http:', 'https:'].includes(globalThis.location.protocol)) return
-  const randomUuid = () => {
-    if (typeof globalThis.crypto.randomUUID === 'function') {
-      return globalThis.crypto.randomUUID()
-    }
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
-    bytes[6] = ((bytes.at(6) ?? 0) & 0x0f) | 0x40
-    bytes[8] = ((bytes.at(8) ?? 0) & 0x3f) | 0x80
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-  }
-  type Emit = (name: string, data?: unknown) => void
-  const emitters = new Map<string, Emit>()
-  const bridge = (
-    globalThis as typeof globalThis & {
-      __oallet_bridge_v1__(message: BridgeMessage): Promise<unknown>
-      __oallet_emit_v1__?: (
-        providerSessionId: string,
-        name: string,
-        data?: unknown,
-      ) => boolean
-    }
-  ).__oallet_bridge_v1__
-  ;(
-    globalThis as typeof globalThis & {
-      __oallet_emit_v1__?: (
-        providerSessionId: string,
-        name: string,
-        data?: unknown,
-      ) => boolean
-    }
-  ).__oallet_emit_v1__ = (providerSessionId, name, data) => {
-    const emit = emitters.get(providerSessionId)
-    if (!emit) return false
-    emit(name, data)
-    return true
-  }
-  const fallbackIcon =
-    'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="black"/><circle cx="16" cy="16" r="6" fill="white"/></svg>'
-
-  for (const profile of profiles) {
-    if (profile.kind !== 'eip155:eoa') continue
-    const providerSessionId = randomUuid()
-    const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
-    let connected = true
-    const emit = (event: string, data?: unknown) => {
-      if (event === 'connect') connected = true
-      if (event === 'disconnect') connected = false
-      for (const listener of listeners.get(event) ?? []) listener(data)
-    }
-    emitters.set(providerSessionId, emit)
-    let ready: Promise<void>
-    const provider = {
-      isConnected: () => connected,
-      on(event: string, listener: (...args: unknown[]) => void) {
-        const set = listeners.get(event) ?? new Set()
-        set.add(listener)
-        listeners.set(event, set)
-        return provider
-      },
-      removeListener(event: string, listener: (...args: unknown[]) => void) {
-        listeners.get(event)?.delete(listener)
-        return provider
-      },
-      async request(request: { method: string; params?: unknown }) {
-        if (!request || typeof request.method !== 'string') {
-          throw new Error('EIP-1193 request requires a method')
-        }
-        await ready
-        const requestId = randomUuid()
-        const response = (await bridge({
-          method: request.method,
-          ...(request.params === undefined
-            ? {}
-            : { params: request.params as Json.Value }),
-          protocolVersion: 1,
-          providerSessionId,
-          requestId,
-          type: 'request',
-          walletId: profile.id,
-        })) as RequestResponse
-        if (response.protocolVersion !== 1 || response.requestId !== requestId) {
-          throw new Error('Oallet returned an invalid browser response')
-        }
-        if (response.error) {
-          throw Object.assign(new Error(response.error.message), {
-            code: response.error.code,
-            ...(response.error.data === undefined ? {} : { data: response.error.data }),
-          })
-        }
-        return response.result
-      },
-    }
-    const detail = Object.freeze({
-      info: Object.freeze({
-        icon: profile.icon ?? fallbackIcon,
-        name: profile.name,
-        rdns:
-          profile.rdns ??
-          `dev.oallet.${profile.id.replace(/[^a-z0-9-]/gi, '-').toLowerCase()}`,
-        uuid: providerSessionId,
-      }),
-      provider,
-    })
-    const announce = () =>
-      globalThis.window.dispatchEvent(
-        new CustomEvent('eip6963:announceProvider', {
-          detail,
-        }),
-      )
-    globalThis.window.addEventListener('eip6963:requestProvider', announce)
-    ready = bridge({
-      protocolVersion: 1,
-      providerSessionId,
-      type: 'register',
-      walletId: profile.id,
-    }).then((state) => {
-      if (state && typeof state === 'object' && 'connected' in state) {
-        connected = state.connected === true
-      }
-      queueMicrotask(announce)
-    })
   }
 }

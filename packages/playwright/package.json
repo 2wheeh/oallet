@@ -47,9 +47,11 @@
     "@oallet/config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/pngjs": "catalog:",
+    "mipd": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "uuid": "catalog:",
     "vitest": "catalog:"
   }
 }
