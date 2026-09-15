@@ -77,11 +77,7 @@ export const test = Fixture.extend(base, {
 })
 ```
 
-The fixture installs the browser bootstrap before application code runs. Providers
-are announced after registration initializes their connection state, so discovery
-can complete after the app starts. Keep the EIP-6963 announcement listener active
-and read current account and chain state from the provider; later subscribers do
-not receive past `connect` events.
+Providers are announced asynchronously after their connection state is initialized.
 
 `Wallet.eoa()` is the default EOA setup path. The lower-level primitives remain
 available when a test needs to define or reuse profile data separately from its RPC
@@ -257,23 +253,14 @@ settlement. Verify peer-observed outcomes in end-to-end tests.
 
 ## Validation
 
-| Command | Boundary |
+| Command | Checks |
 | --- | --- |
 | `pnpm check` | Lint and type checks |
-| `pnpm test:unit` | Tests without browser or chain-node processes |
-| `pnpm test:package` | Builds, installed tarball checks, and package exports; no browser binaries required |
-| `pnpm test:e2e` | Browser, chain-node, and relay tests, including the installed browser runtime |
+| `pnpm test:unit` | Unit tests |
+| `pnpm test:package` | Builds, installed packages, and package exports |
+| `pnpm test:e2e` | Browser, chain-node, and relay integration |
 
-The Verify workflow runs these in separate jobs. Chromium and Foundry installation
-belong to E2E; keep Static, Unit, and Package independent of those installations.
-Release waits for all verification jobs.
-
-`@oallet/playwright` builds its Node library and standalone browser script with one
-tsdown configuration and invocation. Both targets compile in Node; Chromium is only
-needed to execute browser tests. `pnpm test:pack:browser` runs the installed-package
-browser test separately after a build, using Playwright fixtures for its lifecycle.
-The root `pnpm test:e2e` command builds first; run `pnpm build` before invoking
-package-level browser tests directly.
+Only E2E requires Chromium and Foundry.
 
 The EVM integration suite launches Anvil through `prool`, submits a signed EOA
 transaction, returns the RPC hash, and waits for its receipt through an unmodified
