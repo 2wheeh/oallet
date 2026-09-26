@@ -1,6 +1,6 @@
 {
   "name": "@oallet/playwright",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -10,7 +10,8 @@
     "directory": "packages/playwright"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES"
   ],
   "exports": {
     ".": {
@@ -47,9 +48,12 @@
     "@oallet/config": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/pngjs": "catalog:",
+    "mipd": "catalog:",
+    "ox": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
+    "uuid": "catalog:",
     "vitest": "catalog:"
   }
 }

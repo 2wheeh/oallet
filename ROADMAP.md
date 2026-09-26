@@ -6,7 +6,7 @@
 ## Framework and public interface
 
 - [x] Set up the pnpm workspace for `oallet`, `@oallet/core`, `@oallet/evm`,
-      `@oallet/walletconnect`, and `@oallet/playwright`
+      `@oallet/solana`, `@oallet/walletconnect`, and `@oallet/playwright`
 - [x] Keep `oallet` as the umbrella package with subpath re-exports
 - [x] Define serializable wallet Profiles separately from runtime bindings
 - [x] Define stable handle types for wallets, connections, requests, pairings, and
@@ -19,7 +19,8 @@
 
 - [x] Implement one runner-neutral Controller as the authoritative state owner
 - [x] Keep the Browser Adapter as a dumb versioned protocol facade
-- [x] Expose EIP-6963 wallets before application code executes
+- [x] Install the browser bootstrap before application code executes and announce
+      EIP-6963 wallets after registration initializes their connection state
 - [x] Support multiple wallets, accounts, pages, and top-level origins
 - [x] Scope authorization and active chain state to each connection or session
 - [x] Add a thin Playwright fixture without depending on Playwright from core
@@ -79,7 +80,7 @@
 - [x] Dogfood EVM and WalletConnect against DelightKit
 - [x] Dogfood EVM and WalletConnect against Trust Connect SDK
 - [x] Dogfood WalletConnect QR handling against RainbowKit
-- [ ] Dogfood Solana against Trust Connect SDK after the Solana adapter exists
+- [x] Dogfood Solana against Trust Connect SDK
 - [ ] Reuse Duroo AA Playground artifacts for later AA conformance work
 - [ ] Pass the EVM EOA and WalletConnect MVP acceptance matrix on Chromium
 - [x] Gate package publication on the full verification workflow, including real relay
@@ -87,8 +88,8 @@
 
 ## Post-release chain adapters
 
-- [ ] Add a Wallet Standard Solana Adapter with deterministic identity derivation
-- [ ] Use Solana Kit-native transaction and signing interfaces
+- [x] Add a Wallet Standard Solana Adapter with deterministic identity derivation
+- [x] Use Solana Kit-native transaction and signing interfaces
 - [ ] Add a Keplr-compatible Cosmos Adapter with Amino and Direct signing
 - [ ] Configure Cosmos derivation, coin type, and Bech32 prefix per chain
 - [x] Keep chain node lifecycle and account funding owned by consumer test infrastructure
