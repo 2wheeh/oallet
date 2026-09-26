@@ -7,6 +7,7 @@ import {
   Wallet as SolanaWallet,
 } from '@oallet/solana'
 import { Client } from '@oallet/walletconnect'
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
 import * as CoreEntry from 'oallet/core'
 import * as EvmEntry from 'oallet/evm'
 import * as PlaywrightEntry from 'oallet/playwright'
@@ -35,7 +36,18 @@ const solanaProfile = SolanaProfile.keypair({
   name: 'Packed Solana Wallet',
 })
 const solanaEnvironment = Environment.create({
-  wallets: [SolanaWallet.create({ profile: solanaProfile })],
+  wallets: [
+    SolanaWallet.create({
+      profile: solanaProfile,
+      chains: [
+        {
+          chain: 'solana:localnet',
+          rpc: createSolanaRpc('http://127.0.0.1:8899'),
+          rpcSubscriptions: createSolanaRpcSubscriptions('ws://127.0.0.1:8900'),
+        },
+      ],
+    }),
+  ],
 })
 const walletConnectResource = {
   dispose: async () => undefined,

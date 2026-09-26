@@ -1,6 +1,6 @@
 import { Environment } from '@oallet/core'
 import { Identity, Wallet } from '@oallet/evm'
-import { Fixture } from '@oallet/playwright'
+import { Browser, Fixture } from '@oallet/playwright'
 import { test as base, expect, type Locator } from '@playwright/test'
 import { Instance, Pool } from 'prool'
 import {
@@ -114,6 +114,66 @@ test('Wagmi surfaces a native connection rejection', async ({ oallet, page }) =>
   )
   await expect(page.getByTestId('status')).toHaveText('disconnected')
 })
+
+// Manage attachment explicitly to intercept registration before Browser.attach runs.
+base(
+  'Wagmi reconnects an authorized wallet discovered after app startup',
+  async ({ baseURL, context }) => {
+    if (!baseURL) throw new Error('The Wagmi fixture requires a base URL')
+    const environment = Environment.create({
+      wallets: [
+        Wallet.eoa({
+          accounts: [Identity.alice],
+          chains: [{ chain: anvil, transport: http(lease.instance.url) }],
+          id: walletId,
+          name: 'Oallet Test Wallet',
+        }),
+      ],
+    })
+    let releaseRegistration = () => {}
+    const registration = new Promise<void>((resolve) => {
+      releaseRegistration = resolve
+    })
+    const exposeBinding = context.exposeBinding.bind(context)
+    context.exposeBinding = (name, callback) =>
+      exposeBinding(name, async (source, ...args) => {
+        if (name === '__oallet_bridge_v1__' && args[0]?.type === 'register') {
+          await registration
+        }
+        return callback(source, ...args)
+      })
+
+    try {
+      await environment.wallet(walletId).autoApprove(() =>
+        environment.dispatch({
+          method: 'eth_requestAccounts',
+          origin: new URL(baseURL).origin,
+          walletId,
+        }),
+      )
+      const handle = await Browser.attach({ context, environment })
+      try {
+        const page = await context.newPage()
+        await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)
+        await expect(page.getByTestId('status')).toHaveText('disconnected')
+        await expect(
+          page.getByRole('button', { name: 'Connect Oallet Test Wallet' }),
+        ).toHaveCount(0)
+
+        releaseRegistration()
+
+        await expect(page.getByTestId('account')).toHaveText(Identity.alice.address)
+        await expect(page.getByTestId('chain')).toHaveText(String(anvil.id))
+      } finally {
+        releaseRegistration()
+        await handle.dispose()
+      }
+    } finally {
+      context.exposeBinding = exposeBinding
+      await environment.dispose()
+    }
+  },
+)
 
 test('Wagmi follows account restore, reload, and reset', async ({ oallet, page }) => {
   await page.goto(`/?rpc=${encodeURIComponent(lease.instance.url)}`)

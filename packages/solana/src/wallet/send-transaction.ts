@@ -99,7 +99,7 @@ export async function sendTransaction({
           commitment: options.commitment,
           signature: transactionSignature,
         })
-        // Kit 7.1.1 may resolve its subscription iterator on abort.
+        // Kit may resolve its subscription iterator on abort.
         abortSignal.throwIfAborted()
       } catch (cause) {
         abortSignal.throwIfAborted()

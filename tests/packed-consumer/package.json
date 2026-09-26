@@ -10,6 +10,7 @@
     "@oallet/solana": "0.0.0",
     "@oallet/walletconnect": "0.0.0",
     "@playwright/test": "1.62.1",
+    "@solana/kit": "8.3.0",
     "@types/node": "26.2.0",
     "oallet": "0.0.0",
     "pngjs": "7.0.0",
