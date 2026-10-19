@@ -7,6 +7,7 @@ export default defineConfig(
       core: 'src/core.ts',
       evm: 'src/evm.ts',
       playwright: 'src/playwright.ts',
+      solana: 'src/solana.ts',
       walletconnect: 'src/walletconnect.ts',
     },
   }),

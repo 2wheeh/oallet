@@ -22,7 +22,14 @@ const temporary = await mkdtemp(join(tmpdir(), 'oallet-packed-consumer-'))
 const tarballs = join(temporary, 'tarballs')
 const consumer = join(temporary, 'consumer')
 const minimalConsumer = join(temporary, 'minimal-consumer')
-const packageDirectories = ['core', 'evm', 'playwright', 'walletconnect', 'oallet']
+const packageDirectories = [
+  'core',
+  'evm',
+  'playwright',
+  'solana',
+  'walletconnect',
+  'oallet',
+]
 
 try {
   await mkdir(tarballs)
@@ -47,6 +54,7 @@ try {
     '@oallet/core',
     '@oallet/evm',
     '@oallet/playwright',
+    '@oallet/solana',
     '@oallet/walletconnect',
     'oallet',
   ]) {

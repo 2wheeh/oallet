@@ -3,6 +3,8 @@ import type { Json } from '@oallet/core'
 export const bindingName = '__oallet_bridge_v1__'
 
 export type BrowserProfile = {
+  readonly features?: readonly string[] | undefined
+  readonly data: Json.Value
   readonly icon?: string | undefined
   readonly id: string
   readonly kind: string

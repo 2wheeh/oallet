@@ -3,13 +3,21 @@ import {
   mainnet as bitcoinMainnet,
   createBIP122,
 } from '@trustwallet/connect-bip122-react'
-import { createEIP155, useSignMessage } from '@trustwallet/connect-eip155-react'
+import {
+  createEIP155,
+  useSignMessage as useEvmSignMessage,
+} from '@trustwallet/connect-eip155-react'
 import {
   TrustConnectProvider,
+  useConnect,
   useConnections,
   useTrustModal,
 } from '@trustwallet/connect-react'
-import { createSolana, mainnet as solanaMainnet } from '@trustwallet/connect-solana-react'
+import {
+  createSolana,
+  mainnet as solanaMainnet,
+  useSignMessage as useSolanaSignMessage,
+} from '@trustwallet/connect-solana-react'
 // @ts-expect-error The published root declaration does not resolve its extensionless service re-export.
 import { createWalletConnect } from '@trustwallet/connect-walletconnect'
 import { mainnet } from 'viem/chains'
@@ -23,25 +31,24 @@ const eip155 = createEIP155({
 })
 const solana = createSolana({ chain: solanaMainnet })
 const bitcoin = createBIP122({ chain: bitcoinMainnet })
-const walletConnect = createWalletConnect({
-  metadata: {
-    description: 'Oallet Trust Connect consumer fixture',
-    icons: [],
-    name: 'Oallet Trust Connect fixture',
-    url: globalThis.location.origin,
-  },
-  projectId: projectId ?? 'missing-project-id',
-})
+const walletConnect = projectId
+  ? createWalletConnect({
+      metadata: {
+        description: 'Oallet Trust Connect consumer fixture',
+        icons: [],
+        name: 'Oallet Trust Connect fixture',
+        url: globalThis.location.origin,
+      },
+      projectId,
+    })
+  : undefined
 
 export function App() {
-  if (!projectId) {
-    return <p data-testid="configuration-error">Missing VITE_WC_PROJECT_ID</p>
-  }
   return (
     <TrustConnectProvider
       config={{
         namespaces: [eip155, solana, bitcoin],
-        services: [walletConnect],
+        services: walletConnect ? [walletConnect] : [],
       }}
     >
       <QueryClientProvider client={queryClient}>
@@ -53,9 +60,17 @@ export function App() {
 
 function Consumer() {
   const { open } = useTrustModal()
+  const { connect: connectSolana, wallets: solanaWallets } = useConnect({
+    namespaceId: 'solana',
+  })
   const { connections } = useConnections()
-  const signMessage = useSignMessage()
+  const signMessage = useEvmSignMessage()
+  const solanaSignMessage = useSolanaSignMessage()
   const eip155Connection = connections.eip155
+  const oalletSolana = solanaWallets.find(
+    (wallet: (typeof solanaWallets)[number]) =>
+      wallet.name === 'Oallet Trust Connect Solana Wallet',
+  )
 
   return (
     <main>
@@ -70,6 +85,14 @@ function Consumer() {
       <output data-testid="solana-status">
         {connections.solana?.status ?? 'disconnected'}
       </output>
+      <output data-testid="solana-account">{connections.solana?.address}</output>
+      <button
+        disabled={!oalletSolana}
+        onClick={() => oalletSolana && connectSolana({ wallet: oalletSolana })}
+        type="button"
+      >
+        Connect Oallet Solana
+      </button>
       <output data-testid="bip122-status">
         {connections.bip122?.status ?? 'disconnected'}
       </output>
@@ -81,6 +104,18 @@ function Consumer() {
         Sign message
       </button>
       <output data-testid="message-signature">{signMessage.data}</output>
+      <button
+        disabled={connections.solana?.status !== 'connected'}
+        onClick={() =>
+          solanaSignMessage.mutate({ message: 'Hello from Trust Connect Solana' })
+        }
+        type="button"
+      >
+        Sign Solana message
+      </button>
+      <output data-testid="solana-message-signature">
+        {solanaSignMessage.data ? [...solanaSignMessage.data.signature].join(',') : ''}
+      </output>
     </main>
   )
 }

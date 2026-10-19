@@ -209,13 +209,31 @@ export async function attach(options: attach.Options): Promise<Handle> {
       )
     })
     const profiles: BrowserProfile[] = environment.profiles.map(
-      ({ icon, id, kind, name, rdns }) => ({
-        ...(icon === undefined ? {} : { icon }),
-        id,
-        kind,
-        name,
-        ...(rdns === undefined ? {} : { rdns }),
-      }),
+      ({ data, icon, id, kind, name, rdns }) => {
+        const state =
+          kind === 'solana:keypair'
+            ? environment[Environment.controller].state(id, '')
+            : undefined
+        const features =
+          state && typeof state === 'object' && !Array.isArray(state)
+            ? (state as Record<string, Json.Value>).features
+            : undefined
+        return {
+          data,
+          ...(Array.isArray(features)
+            ? {
+                features: features.filter(
+                  (feature): feature is string => typeof feature === 'string',
+                ),
+              }
+            : {}),
+          ...(icon === undefined ? {} : { icon }),
+          id,
+          kind,
+          name,
+          ...(rdns === undefined ? {} : { rdns }),
+        }
+      },
     )
     // Both src/browser and the unbundled dist/browser resolve this packaged asset.
     const runtime = await readFile(
