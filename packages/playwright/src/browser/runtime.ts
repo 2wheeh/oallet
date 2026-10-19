@@ -1,5 +1,6 @@
 import type { Json } from '@oallet/core'
 import { announceProvider, type EIP1193Provider, type EIP6963ProviderInfo } from 'mipd'
+import * as Provider from 'ox/Provider'
 import { v4 as uuid } from 'uuid'
 
 import {
@@ -28,25 +29,23 @@ export function bootstrap(profiles: readonly BrowserProfile[]) {
   for (const profile of profiles) {
     if (profile.kind !== 'eip155:eoa') continue
     const providerSessionId = uuid()
-    const listeners = new Map<string, Set<(...args: unknown[]) => void>>()
+    const emitter = Provider.createEmitter()
     let connected = true
     const emit = (event: string, data?: unknown) => {
       if (event === 'connect') connected = true
       if (event === 'disconnect') connected = false
-      for (const listener of listeners.get(event) ?? []) listener(data)
+      emitter.emit(event, data)
     }
     emitters.set(providerSessionId, emit)
     let ready: Promise<void>
     const provider = {
       isConnected: () => connected,
       on(event: string, listener: (...args: unknown[]) => void) {
-        const set = listeners.get(event) ?? new Set()
-        set.add(listener)
-        listeners.set(event, set)
+        emitter.on(event, listener)
         return provider
       },
       removeListener(event: string, listener: (...args: unknown[]) => void) {
-        listeners.get(event)?.delete(listener)
+        emitter.removeListener(event, listener)
         return provider
       },
       async request(request: { method: string; params?: unknown }) {

@@ -10,7 +10,8 @@
     "directory": "packages/playwright"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES"
   ],
   "exports": {
     ".": {
@@ -48,6 +49,7 @@
     "@playwright/test": "catalog:",
     "@types/pngjs": "catalog:",
     "mipd": "catalog:",
+    "ox": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

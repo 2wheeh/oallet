@@ -39,6 +39,7 @@ catalog:
   '@walletconnect/sign-client': 2.23.10
   '@walletconnect/utils': 2.23.10
   mipd: 0.0.7
+  ox: 0.14.34
   pngjs: 7.0.0
   prool: ^0.2.14
   publint: ^0.3.21

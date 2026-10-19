@@ -295,31 +295,42 @@ test('announces an EIP-6963 provider and bridges requests to the controller', as
     })
     expect(origins).toEqual(['https://app.example'])
 
-    const rejected = page.evaluate(async () => {
-      const provider = (
-        window as typeof window & {
-          __oalletTestProvider: {
-            request(input: { method: string }): Promise<unknown>
+    for (const code of [4001, -32042]) {
+      const rejected = page.evaluate(async () => {
+        const provider = (
+          window as typeof window & {
+            __oalletTestProvider: {
+              request(input: { method: string }): Promise<unknown>
+            }
+          }
+        ).__oalletTestProvider
+        try {
+          await provider.request({ method: 'personal_sign' })
+          return null
+        } catch (error) {
+          const rejection = error as Error & { code?: number; data?: unknown }
+          return {
+            code: rejection.code,
+            data: rejection.data,
+            message: rejection.message,
           }
         }
-      ).__oalletTestProvider
-      try {
-        await provider.request({ method: 'personal_sign' })
-        return null
-      } catch (error) {
-        return {
-          code: (error as Error & { code?: number }).code,
-          message: (error as Error).message,
-        }
-      }
-    })
-    const signRequest = await environment.wallet('wallet').requests.next('personal_sign')
-    signRequest.reject({ code: 4001, message: 'User rejected signing' })
+      })
+      const signRequest = await environment
+        .wallet('wallet')
+        .requests.next('personal_sign')
+      signRequest.reject({
+        code,
+        data: { reason: 'Signing was declined' },
+        message: 'User rejected signing',
+      })
 
-    await expect(rejected).resolves.toEqual({
-      code: 4001,
-      message: 'User rejected signing',
-    })
+      await expect(rejected).resolves.toEqual({
+        code,
+        data: { reason: 'Signing was declined' },
+        message: 'User rejected signing',
+      })
+    }
 
     const abandoned = page
       .evaluate(() => {
@@ -478,7 +489,8 @@ test('delivers controller account changes to the active provider', async () => {
     const connect = page.evaluate(async () => {
       const detail = await new Promise<{
         provider: {
-          on(event: string, listener: (value: unknown) => void): void
+          on(event: string, listener: (value: unknown) => void): unknown
+          removeListener(event: string, listener: (value: unknown) => void): unknown
           request(input: { method: string }): Promise<unknown>
         }
       }>((resolve) => {
@@ -488,7 +500,19 @@ test('delivers controller account changes to the active provider', async () => {
         window.dispatchEvent(new Event('eip6963:requestProvider'))
       })
       const events: unknown[] = []
-      detail.provider.on('accountsChanged', (accounts) => events.push(accounts))
+      const listener = (accounts: unknown) => events.push(accounts)
+      const removedListener = () => events.push('removed listener was called')
+      if (detail.provider.on('accountsChanged', listener) !== detail.provider) {
+        throw new Error('Provider.on must return the provider')
+      }
+      detail.provider.on('accountsChanged', listener)
+      detail.provider.on('accountsChanged', removedListener)
+      if (
+        detail.provider.removeListener('accountsChanged', removedListener) !==
+        detail.provider
+      ) {
+        throw new Error('Provider.removeListener must return the provider')
+      }
       Object.assign(window, { __oalletTestEvents: events })
       return detail.provider.request({ method: 'eth_requestAccounts' })
     })
@@ -509,7 +533,10 @@ test('delivers controller account changes to the active provider', async () => {
               .__oalletTestEvents,
         ),
       )
-      .toEqual([['0x0000000000000000000000000000000000000002']])
+      .toEqual([
+        ['0x0000000000000000000000000000000000000002'],
+        ['0x0000000000000000000000000000000000000002'],
+      ])
     expect(environment.trace.events.map((event) => event.type)).toContain(
       'provider.eventDelivered',
     )

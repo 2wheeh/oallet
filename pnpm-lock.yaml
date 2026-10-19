@@ -60,6 +60,9 @@ catalogs:
     mipd:
       specifier: 0.0.7
       version: 0.0.7
+    ox:
+      specifier: 0.14.34
+      version: 0.14.34
     pngjs:
       specifier: 7.0.0
       version: 7.0.0
@@ -250,6 +253,9 @@ importers:
       mipd:
         specifier: 'catalog:'
         version: 0.0.7(typescript@6.0.3)
+      ox:
+        specifier: 'catalog:'
+        version: 0.14.34(typescript@6.0.3)(zod@4.4.3)
       publint:
         specifier: 'catalog:'
         version: 0.3.24
