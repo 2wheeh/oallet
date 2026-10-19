@@ -8,7 +8,7 @@ and routes approvals back to the test process.
 
 - EVM EOA profiles derived from the standard ten-account Anvil mnemonic
 - Real signing and transaction submission through consumer-provided viem transports
-- EIP-6963 injection before application code, without `window.ethereum` or an extension
+- EIP-6963 discovery without `window.ethereum` or an extension
 - Manual approval queues, wallet-scoped auto approval, reset, snapshot, and restore
 - A real `@reown/walletkit` peer for WalletConnect v2 pairing and session requests
 - Playwright fixtures, failure traces, and visible QR decoding
@@ -76,6 +76,8 @@ export const test = Fixture.extend(base, {
     }),
 })
 ```
+
+Providers are announced asynchronously after their connection state is initialized.
 
 `Wallet.eoa()` is the default EOA setup path. The lower-level primitives remain
 available when a test needs to define or reuse profile data separately from its RPC
@@ -251,9 +253,14 @@ settlement. Verify peer-observed outcomes in end-to-end tests.
 
 ## Validation
 
-```sh
-pnpm check
-```
+| Command | Checks |
+| --- | --- |
+| `pnpm check` | Lint and type checks |
+| `pnpm test:unit` | Unit tests |
+| `pnpm test:package` | Builds, installed packages, and package exports |
+| `pnpm test:e2e` | Browser, chain-node, and relay integration |
+
+Only E2E requires Chromium and Foundry.
 
 The EVM integration suite launches Anvil through `prool`, submits a signed EOA
 transaction, returns the RPC hash, and waits for its receipt through an unmodified
