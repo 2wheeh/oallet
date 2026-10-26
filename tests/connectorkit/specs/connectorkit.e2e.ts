@@ -27,29 +27,38 @@ const profile = Profile.keypair({
 })
 
 const test = Fixture.extend(base, {
-  environment: () => Environment.create({ wallets: [createWallet()] }),
+  environment: () => Environment.create({ wallets: [createWallet(surfnet)] }),
 })
 
-function createWallet() {
+function createWallet(node: Surfnet) {
   return Wallet.create({
     profile,
     chains: [
       {
         chain: 'solana:localnet',
-        rpc: createSolanaRpc(surfnet.rpcUrl),
-        rpcSubscriptions: createSolanaRpcSubscriptions(surfnet.wsUrl),
+        rpc: createSolanaRpc(node.rpcUrl),
+        rpcSubscriptions: createSolanaRpcSubscriptions(node.wsUrl),
       },
     ],
     transactionTimeoutMs: 15_000,
   })
 }
 
-test.beforeAll(() => {
-  surfnet = Surfnet.startWithConfig({ offline: true })
-  surfnet.fundSolMany([
+function startSurfnet(blockProductionMode: 'transaction' | 'clock' = 'transaction') {
+  const node = Surfnet.startWithConfig({
+    offline: true,
+    blockProductionMode,
+    slotTimeMs: 50,
+  })
+  node.fundSolMany([
     { address: Identity.alice.address, lamports: 1_000_000_000 },
     { address: Identity.bob.address, lamports: 1_000_000_000 },
   ])
+  return node
+}
+
+test.beforeAll(() => {
+  surfnet = startSurfnet()
 })
 
 test.afterAll(() => {
@@ -192,10 +201,14 @@ test('submits a transfer through the wallet from ConnectorKit', async ({
 
 for (const commitment of ['processed', 'confirmed', 'finalized'] as const) {
   test(`wallet confirms a Surfpool transaction at ${commitment}`, async () => {
-    const environment = Environment.create({ wallets: [createWallet()] })
+    // Finalization needs subsequent blocks even when no more transactions arrive.
+    // Use transaction mode for lower commitments to avoid Surfpool's clock-mode
+    // processed subscription race with its signature status cache.
+    const node = commitment === 'finalized' ? startSurfnet('clock') : surfnet
+    const environment = Environment.create({ wallets: [createWallet(node)] })
     try {
       const wallet = environment.wallet(profile.id)
-      const rpc = createSolanaRpc(surfnet.rpcUrl)
+      const rpc = createSolanaRpc(node.rpcUrl)
       await wallet.autoApprove(() =>
         environment.dispatch({
           walletId: profile.id,
@@ -243,7 +256,11 @@ for (const commitment of ['processed', 'confirmed', 'finalized'] as const) {
         levels.indexOf(commitment),
       )
     } finally {
-      await environment.dispose()
+      try {
+        await environment.dispose()
+      } finally {
+        if (node !== surfnet) node.stop()
+      }
     }
   })
 }
