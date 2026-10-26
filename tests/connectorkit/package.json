@@ -1,0 +1,28 @@
+{
+  "name": "@oallet/test-connectorkit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oallet/core": "workspace:*",
+    "@oallet/playwright": "workspace:*",
+    "@oallet/solana": "workspace:*",
+    "@playwright/test": "catalog:",
+    "@solana/connector": "catalog:",
+    "@solana/web3.js": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vite": "catalog:"
+  },
+  "devDependencies": {
+    "@oallet/config": "workspace:*",
+    "@solana/kit": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

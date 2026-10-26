@@ -1,10 +1,17 @@
-import { Environment } from '@oallet/core'
+import { Identity as CoreIdentity, Environment } from '@oallet/core'
 import { Identity, Transport, Wallet } from '@oallet/evm'
 import { Fixture } from '@oallet/playwright'
+import {
+  Identity as SolanaIdentity,
+  Profile as SolanaProfile,
+  Wallet as SolanaWallet,
+} from '@oallet/solana'
 import { Client } from '@oallet/walletconnect'
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
 import * as CoreEntry from 'oallet/core'
 import * as EvmEntry from 'oallet/evm'
 import * as PlaywrightEntry from 'oallet/playwright'
+import * as SolanaEntry from 'oallet/solana'
 import * as WalletConnectEntry from 'oallet/walletconnect'
 import { anvil } from 'viem/chains'
 
@@ -22,6 +29,26 @@ const wallet = Wallet.eoa({
 const environment = Environment.create({
   wallets: [wallet],
 })
+const solanaProfile = SolanaProfile.keypair({
+  accounts: [SolanaIdentity.alice],
+  chains: ['solana:localnet'],
+  id: 'packed-solana-wallet',
+  name: 'Packed Solana Wallet',
+})
+const solanaEnvironment = Environment.create({
+  wallets: [
+    SolanaWallet.create({
+      profile: solanaProfile,
+      chains: [
+        {
+          chain: 'solana:localnet',
+          rpc: createSolanaRpc('http://127.0.0.1:8899'),
+          rpcSubscriptions: createSolanaRpcSubscriptions('ws://127.0.0.1:8900'),
+        },
+      ],
+    }),
+  ],
+})
 const walletConnectResource = {
   dispose: async () => undefined,
 } satisfies Fixture.extend.WalletConnectResource
@@ -33,16 +60,21 @@ const pairingTimeout = new WalletConnectEntry.Errors.PairingTimeoutError(
 const publicSurface = {
   clientCreate: Client.create,
   coreEnvironment: CoreEntry.Environment,
+  coreIdentity: CoreEntry.Identity,
   environment,
   evmProfile: EvmEntry.Profile,
   evmTransport: EvmEntry.Transport,
   evmWallet: EvmEntry.Wallet,
   fixtureExtend: Fixture.extend,
-  playwrightFixture: PlaywrightEntry.Fixture,
+  mnemonic: CoreIdentity.mnemonic,
   pairingTimeout,
+  playwrightFixture: PlaywrightEntry.Fixture,
+  solanaEnvironment,
+  solanaProfile: SolanaEntry.Profile,
   walletConnectClient: WalletConnectEntry.Client,
   walletConnectResource,
 }
 
 void publicSurface
 await environment.dispose()
+await solanaEnvironment.dispose()
