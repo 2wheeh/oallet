@@ -335,3 +335,12 @@ pnpm check
 The EVM integration suite launches Anvil through `prool`, submits a signed EOA
 transaction, returns the RPC hash, and waits for its receipt through an unmodified
 viem public client.
+
+The Solana ConnectorKit suite uses Surfpool SDK 1.6 with Solana Kit 8 to start an
+isolated Surfnet, fund the deterministic Oallet accounts, and exercise both dApp
+submission after wallet signing and wallet-owned signing/submission through
+ConnectorKit. Both paths verify confirmation and recipient balance changes; wallet
+confirmation is also checked at each supported commitment. The finalized case uses
+a separate node with clock-mode block production and 50ms slots so confirmation
+progresses without additional transactions. Lower commitments use transaction mode
+to avoid Surfpool's clock-mode processed-subscription race.
