@@ -7,6 +7,7 @@ import {
   Wallet as SolanaWallet,
 } from '@oallet/solana'
 import { Client } from '@oallet/walletconnect'
+import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
 import * as CoreEntry from 'oallet/core'
 import * as EvmEntry from 'oallet/evm'
 import * as PlaywrightEntry from 'oallet/playwright'
@@ -28,13 +29,6 @@ const wallet = Wallet.eoa({
 const environment = Environment.create({
   wallets: [wallet],
 })
-const walletConnectResource = {
-  dispose: async () => undefined,
-} satisfies Fixture.extend.WalletConnectResource
-const pairingTimeout = new WalletConnectEntry.Errors.PairingTimeoutError(
-  'Pairing timed out',
-  { stage: 'pairing' },
-)
 const solanaProfile = SolanaProfile.keypair({
   accounts: [SolanaIdentity.alice],
   chains: ['solana:localnet'],
@@ -42,8 +36,26 @@ const solanaProfile = SolanaProfile.keypair({
   name: 'Packed Solana Wallet',
 })
 const solanaEnvironment = Environment.create({
-  wallets: [SolanaWallet.create({ profile: solanaProfile })],
+  wallets: [
+    SolanaWallet.create({
+      profile: solanaProfile,
+      chains: [
+        {
+          chain: 'solana:localnet',
+          rpc: createSolanaRpc('http://127.0.0.1:8899'),
+          rpcSubscriptions: createSolanaRpcSubscriptions('ws://127.0.0.1:8900'),
+        },
+      ],
+    }),
+  ],
 })
+const walletConnectResource = {
+  dispose: async () => undefined,
+} satisfies Fixture.extend.WalletConnectResource
+const pairingTimeout = new WalletConnectEntry.Errors.PairingTimeoutError(
+  'Pairing timed out',
+  { stage: 'pairing' },
+)
 
 const publicSurface = {
   clientCreate: Client.create,

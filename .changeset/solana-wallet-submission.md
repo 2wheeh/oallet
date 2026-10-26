@@ -4,7 +4,7 @@
 '@oallet/solana': minor
 ---
 
-Added Wallet Standard `solana:signAndSendTransaction` with explicit chain RPC bindings
+Added Wallet Standard `solana:signAndSendTransaction` with explicit Solana Kit 8 RPC bindings
 and raw signature-byte responses. An optional commitment waits for confirmation;
 timeouts and cancellation reject pending submissions and confirmation waits.
 

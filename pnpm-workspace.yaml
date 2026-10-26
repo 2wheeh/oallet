@@ -27,9 +27,9 @@ peerDependencyRules:
 catalog:
   '@scure/bip39': 2.4.0
   '@solana/connector': 0.2.6
-  '@solana/kit': ^7.1.1
-  '@solana/transaction-confirmation': ^7.1.1
-  '@solana/web3.js': 1.98.4
+  '@solana/kit': ^8.3.0
+  '@solana/transaction-confirmation': ^8.3.0
+  '@solana/web3.js': 1.99.0
   '@arethetypeswrong/cli': ^0.18.5
   '@biomejs/biome': 2.5.10
   '@changesets/changelog-github': ^1.0.0

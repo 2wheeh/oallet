@@ -211,8 +211,8 @@ const environment = Environment.create({
 
 Wallets support `standard:connect`, `standard:disconnect`, `standard:events`,
 `solana:signMessage`, and `solana:signTransaction` for legacy and version-0 wire
-transactions. To also expose `solana:signAndSendTransaction`, inject a Kit RPC and
-subscription client for every chain in the profile:
+transactions. To also expose `solana:signAndSendTransaction`, inject Solana Kit 8
+RPC and subscription clients for every chain in the profile:
 
 ```ts
 import { createSolanaRpc, createSolanaRpcSubscriptions } from '@solana/kit'
