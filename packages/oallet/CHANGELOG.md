@@ -1,5 +1,15 @@
 # oallet
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [[`fc57510`](https://github.com/2wheeh/oallet/commit/fc57510f05f69367f47b880ec4210072a8a97ac2)]:
+  - @oallet/core@0.6.1
+  - @oallet/playwright@0.6.1
+  - @oallet/evm@0.6.1
+  - @oallet/walletconnect@0.6.1
+
 ## 0.6.0
 
 ### Patch Changes

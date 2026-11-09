@@ -1,5 +1,11 @@
 # @oallet/core
 
+## 0.6.1
+
+### Patch Changes
+
+- [#32](https://github.com/2wheeh/oallet/pull/32) [`fc57510`](https://github.com/2wheeh/oallet/commit/fc57510f05f69367f47b880ec4210072a8a97ac2) Thanks [@2wheeh](https://github.com/2wheeh)! - Update Valibot to 1.5.0 and the QR decoder to 0.7.2.
+
 ## 0.6.0
 
 ### Minor Changes
