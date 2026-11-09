@@ -2,18 +2,18 @@
   "name": "oallet-packed-consumer",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.34.4",
+  "packageManager": "pnpm@10.34.9",
   "dependencies": {
     "@oallet/core": "0.0.0",
     "@oallet/evm": "0.0.0",
     "@oallet/playwright": "0.0.0",
     "@oallet/walletconnect": "0.0.0",
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.65.0",
     "@types/node": "26.2.0",
     "oallet": "0.0.0",
     "pngjs": "7.0.0",
-    "qr": "0.7.0",
+    "qr": "0.7.2",
     "typescript": "6.0.3",
-    "viem": "2.55.19"
+    "viem": "2.57.16"
   }
 }
