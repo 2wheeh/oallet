@@ -71,7 +71,7 @@ try {
       {
         dependencies: minimalDependencies,
         name: 'oallet-minimal-packed-consumer',
-        packageManager: 'pnpm@10.34.4',
+        packageManager: 'pnpm@10.34.9',
         pnpm: { overrides: minimalOverrides },
         private: true,
         type: 'module',
